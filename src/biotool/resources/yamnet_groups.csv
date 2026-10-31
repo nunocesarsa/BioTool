@@ -1,0 +1,522 @@
+index,display_name,group,audioset_top
+0,Speech,anthropophony,Human sounds
+1,"Child speech, kid speaking",anthropophony,Human sounds
+2,Conversation,anthropophony,Human sounds
+3,"Narration, monologue",anthropophony,Human sounds
+4,Babbling,anthropophony,Human sounds
+5,Speech synthesizer,anthropophony,Human sounds
+6,Shout,anthropophony,Human sounds
+7,Bellow,anthropophony,Human sounds
+8,Whoop,anthropophony,Human sounds
+9,Yell,anthropophony,Human sounds
+10,Children shouting,anthropophony,Human sounds
+11,Screaming,anthropophony,Human sounds
+12,Whispering,anthropophony,Human sounds
+13,Laughter,anthropophony,Human sounds
+14,Baby laughter,anthropophony,Human sounds
+15,Giggle,anthropophony,Human sounds
+16,Snicker,anthropophony,Human sounds
+17,Belly laugh,anthropophony,Human sounds
+18,"Chuckle, chortle",anthropophony,Human sounds
+19,"Crying, sobbing",anthropophony,Human sounds
+20,"Baby cry, infant cry",anthropophony,Human sounds
+21,Whimper,anthropophony,Human sounds
+22,"Wail, moan",anthropophony,Human sounds
+23,Sigh,anthropophony,Human sounds
+24,Singing,anthropophony,Human sounds
+25,Choir,anthropophony,Human sounds|Music
+26,Yodeling,anthropophony,Human sounds
+27,Chant,anthropophony,Human sounds|Music
+28,Mantra,anthropophony,Human sounds|Music
+29,Child singing,anthropophony,Human sounds
+30,Synthetic singing,anthropophony,Human sounds
+31,Rapping,anthropophony,Human sounds
+32,Humming,anthropophony,Human sounds
+33,Groan,anthropophony,Human sounds
+34,Grunt,anthropophony,Human sounds
+35,Whistling,anthropophony,Human sounds
+36,Breathing,anthropophony,Human sounds
+37,Wheeze,anthropophony,Human sounds
+38,Snoring,anthropophony,Human sounds
+39,Gasp,anthropophony,Human sounds
+40,Pant,anthropophony,Human sounds
+41,Snort,anthropophony,Human sounds
+42,Cough,anthropophony,Human sounds
+43,Throat clearing,anthropophony,Human sounds
+44,Sneeze,anthropophony,Human sounds
+45,Sniff,anthropophony,Human sounds
+46,Run,anthropophony,Human sounds
+47,Shuffle,anthropophony,Human sounds
+48,"Walk, footsteps",anthropophony,Human sounds
+49,"Chewing, mastication",anthropophony,Human sounds
+50,Biting,anthropophony,Human sounds
+51,Gargling,anthropophony,Human sounds
+52,Stomach rumble,anthropophony,Human sounds
+53,"Burping, eructation",anthropophony,Human sounds
+54,Hiccup,anthropophony,Human sounds
+55,Fart,anthropophony,Human sounds
+56,Hands,anthropophony,Human sounds
+57,Finger snapping,anthropophony,Human sounds
+58,Clapping,anthropophony,Human sounds
+59,"Heart sounds, heartbeat",anthropophony,Human sounds
+60,Heart murmur,anthropophony,Human sounds
+61,Cheering,anthropophony,Human sounds
+62,Applause,anthropophony,Human sounds
+63,Chatter,anthropophony,Human sounds
+64,Crowd,anthropophony,Human sounds
+65,"Hubbub, speech noise, speech babble",anthropophony,"Channel, environment and background|Human sounds"
+66,Children playing,anthropophony,Human sounds
+67,Animal,biophony,Animal
+68,"Domestic animals, pets",biophony,Animal
+69,Dog,biophony,Animal
+70,Bark,biophony,Animal
+71,Yip,biophony,Animal
+72,Howl,biophony,Animal
+73,Bow-wow,biophony,Animal
+74,Growling,biophony,Animal
+75,Whimper (dog),biophony,Animal
+76,Cat,biophony,Animal
+77,Purr,biophony,Animal
+78,Meow,biophony,Animal
+79,Hiss,biophony,Animal|Natural sounds|Source-ambiguous sounds
+80,Caterwaul,biophony,Animal
+81,"Livestock, farm animals, working animals",biophony,Animal
+82,Horse,biophony,Animal
+83,Clip-clop,biophony,Animal|Source-ambiguous sounds
+84,"Neigh, whinny",biophony,Animal
+85,"Cattle, bovinae",biophony,Animal
+86,Moo,biophony,Animal
+87,Cowbell,biophony,Animal|Music|Sounds of things
+88,Pig,biophony,Animal
+89,Oink,biophony,Animal
+90,Goat,biophony,Animal
+91,Bleat,biophony,Animal
+92,Sheep,biophony,Animal
+93,Fowl,biophony,Animal
+94,"Chicken, rooster",biophony,Animal
+95,Cluck,biophony,Animal
+96,"Crowing, cock-a-doodle-doo",biophony,Animal
+97,Turkey,biophony,Animal
+98,Gobble,biophony,Animal
+99,Duck,biophony,Animal
+100,Quack,biophony,Animal
+101,Goose,biophony,Animal
+102,Honk,biophony,Animal
+103,Wild animals,biophony,Animal
+104,"Roaring cats (lions, tigers)",biophony,Animal
+105,Roar,biophony,Animal
+106,Bird,biophony,Animal
+107,"Bird vocalization, bird call, bird song",biophony,Animal
+108,"Chirp, tweet",biophony,Animal|Source-ambiguous sounds
+109,Squawk,biophony,Animal
+110,"Pigeon, dove",biophony,Animal
+111,Coo,biophony,Animal
+112,Crow,biophony,Animal
+113,Caw,biophony,Animal
+114,Owl,biophony,Animal
+115,Hoot,biophony,Animal
+116,"Bird flight, flapping wings",biophony,Animal
+117,"Canidae, dogs, wolves",biophony,Animal
+118,"Rodents, rats, mice",biophony,Animal
+119,Mouse,biophony,Animal
+120,Patter,biophony,Animal
+121,Insect,biophony,Animal
+122,Cricket,biophony,Animal
+123,Mosquito,biophony,Animal
+124,"Fly, housefly",biophony,Animal
+125,Buzz,biophony,Animal|Source-ambiguous sounds
+126,"Bee, wasp, etc.",biophony,Animal
+127,Frog,biophony,Animal
+128,Croak,biophony,Animal
+129,Snake,biophony,Animal
+130,Rattle,biophony,Animal|Source-ambiguous sounds
+131,Whale vocalization,biophony,Animal
+132,Music,anthropophony,Music
+133,Musical instrument,anthropophony,Music
+134,Plucked string instrument,anthropophony,Music
+135,Guitar,anthropophony,Music
+136,Electric guitar,anthropophony,Music
+137,Bass guitar,anthropophony,Music
+138,Acoustic guitar,anthropophony,Music
+139,"Steel guitar, slide guitar",anthropophony,Music
+140,Tapping (guitar technique),anthropophony,Music
+141,Strum,anthropophony,Music
+142,Banjo,anthropophony,Music
+143,Sitar,anthropophony,Music
+144,Mandolin,anthropophony,Music
+145,Zither,anthropophony,Music
+146,Ukulele,anthropophony,Music
+147,Keyboard (musical),anthropophony,Music
+148,Piano,anthropophony,Music
+149,Electric piano,anthropophony,Music
+150,Organ,anthropophony,Music
+151,Electronic organ,anthropophony,Music
+152,Hammond organ,anthropophony,Music
+153,Synthesizer,anthropophony,Music
+154,Sampler,anthropophony,Music
+155,Harpsichord,anthropophony,Music
+156,Percussion,anthropophony,Music
+157,Drum kit,anthropophony,Music
+158,Drum machine,anthropophony,Music
+159,Drum,anthropophony,Music
+160,Snare drum,anthropophony,Music
+161,Rimshot,anthropophony,Music
+162,Drum roll,anthropophony,Music
+163,Bass drum,anthropophony,Music
+164,Timpani,anthropophony,Music
+165,Tabla,anthropophony,Music
+166,Cymbal,anthropophony,Music
+167,Hi-hat,anthropophony,Music
+168,Wood block,anthropophony,Music
+169,Tambourine,anthropophony,Music
+170,Rattle (instrument),anthropophony,Music
+171,Maraca,anthropophony,Music
+172,Gong,anthropophony,Music
+173,Tubular bells,anthropophony,Music
+174,Mallet percussion,anthropophony,Music
+175,"Marimba, xylophone",anthropophony,Music
+176,Glockenspiel,anthropophony,Music
+177,Vibraphone,anthropophony,Music
+178,Steelpan,anthropophony,Music
+179,Orchestra,anthropophony,Music
+180,Brass instrument,anthropophony,Music
+181,French horn,anthropophony,Music
+182,Trumpet,anthropophony,Music
+183,Trombone,anthropophony,Music
+184,Bowed string instrument,anthropophony,Music
+185,String section,anthropophony,Music
+186,"Violin, fiddle",anthropophony,Music
+187,Pizzicato,anthropophony,Music
+188,Cello,anthropophony,Music
+189,Double bass,anthropophony,Music
+190,"Wind instrument, woodwind instrument",anthropophony,Music
+191,Flute,anthropophony,Music
+192,Saxophone,anthropophony,Music
+193,Clarinet,anthropophony,Music
+194,Harp,anthropophony,Music
+195,Bell,anthropophony,Music|Sounds of things
+196,Church bell,anthropophony,Music|Sounds of things
+197,Jingle bell,anthropophony,Music|Sounds of things
+198,Bicycle bell,anthropophony,Music|Sounds of things
+199,Tuning fork,anthropophony,Music|Sounds of things
+200,Chime,anthropophony,Music|Sounds of things
+201,Wind chime,anthropophony,Music|Sounds of things
+202,Change ringing (campanology),anthropophony,Music|Sounds of things
+203,Harmonica,anthropophony,Music
+204,Accordion,anthropophony,Music
+205,Bagpipes,anthropophony,Music
+206,Didgeridoo,anthropophony,Music
+207,Shofar,anthropophony,Music
+208,Theremin,anthropophony,Music
+209,Singing bowl,anthropophony,Music
+210,Scratching (performance technique),anthropophony,Music
+211,Pop music,anthropophony,Music
+212,Hip hop music,anthropophony,Music
+213,Beatboxing,anthropophony,Music
+214,Rock music,anthropophony,Music
+215,Heavy metal,anthropophony,Music
+216,Punk rock,anthropophony,Music
+217,Grunge,anthropophony,Music
+218,Progressive rock,anthropophony,Music
+219,Rock and roll,anthropophony,Music
+220,Psychedelic rock,anthropophony,Music
+221,Rhythm and blues,anthropophony,Music
+222,Soul music,anthropophony,Music
+223,Reggae,anthropophony,Music
+224,Country,anthropophony,Music
+225,Swing music,anthropophony,Music
+226,Bluegrass,anthropophony,Music
+227,Funk,anthropophony,Music
+228,Folk music,anthropophony,Music
+229,Middle Eastern music,anthropophony,Music
+230,Jazz,anthropophony,Music
+231,Disco,anthropophony,Music
+232,Classical music,anthropophony,Music
+233,Opera,anthropophony,Music
+234,Electronic music,anthropophony,Music
+235,House music,anthropophony,Music
+236,Techno,anthropophony,Music
+237,Dubstep,anthropophony,Music
+238,Drum and bass,anthropophony,Music
+239,Electronica,anthropophony,Music
+240,Electronic dance music,anthropophony,Music
+241,Ambient music,anthropophony,Music
+242,Trance music,anthropophony,Music
+243,Music of Latin America,anthropophony,Music
+244,Salsa music,anthropophony,Music
+245,Flamenco,anthropophony,Music
+246,Blues,anthropophony,Music
+247,Music for children,anthropophony,Music
+248,New-age music,anthropophony,Music
+249,Vocal music,anthropophony,Music
+250,A capella,anthropophony,Music
+251,Music of Africa,anthropophony,Music
+252,Afrobeat,anthropophony,Music
+253,Christian music,anthropophony,Music
+254,Gospel music,anthropophony,Music
+255,Music of Asia,anthropophony,Music
+256,Carnatic music,anthropophony,Music
+257,Music of Bollywood,anthropophony,Music
+258,Ska,anthropophony,Music
+259,Traditional music,anthropophony,Music
+260,Independent music,anthropophony,Music
+261,Song,anthropophony,Music
+262,Background music,anthropophony,Music
+263,Theme music,anthropophony,Music
+264,Jingle (music),anthropophony,Music
+265,Soundtrack music,anthropophony,Music
+266,Lullaby,anthropophony,Music
+267,Video game music,anthropophony,Music
+268,Christmas music,anthropophony,Music
+269,Dance music,anthropophony,Music
+270,Wedding music,anthropophony,Music
+271,Happy music,anthropophony,Music
+272,Sad music,anthropophony,Music
+273,Tender music,anthropophony,Music
+274,Exciting music,anthropophony,Music
+275,Angry music,anthropophony,Music
+276,Scary music,anthropophony,Music
+277,Wind,geophony,Natural sounds
+278,Rustling leaves,geophony,Natural sounds
+279,Wind noise (microphone),geophony,Natural sounds|Sounds of things
+280,Thunderstorm,geophony,Natural sounds
+281,Thunder,geophony,Natural sounds
+282,Water,geophony,Natural sounds
+283,Rain,geophony,Natural sounds
+284,Raindrop,geophony,Natural sounds
+285,Rain on surface,geophony,Natural sounds
+286,Stream,geophony,Natural sounds
+287,Waterfall,geophony,Natural sounds
+288,Ocean,geophony,Natural sounds
+289,"Waves, surf",geophony,Natural sounds
+290,Steam,geophony,Natural sounds
+291,Gurgling,geophony,Natural sounds
+292,Fire,geophony,Natural sounds
+293,Crackle,geophony,Natural sounds|Source-ambiguous sounds
+294,Vehicle,anthropophony,Sounds of things
+295,"Boat, Water vehicle",anthropophony,Sounds of things
+296,"Sailboat, sailing ship",anthropophony,Sounds of things
+297,"Rowboat, canoe, kayak",anthropophony,Sounds of things
+298,"Motorboat, speedboat",anthropophony,Sounds of things
+299,Ship,anthropophony,Sounds of things
+300,Motor vehicle (road),anthropophony,Sounds of things
+301,Car,anthropophony,Sounds of things
+302,"Vehicle horn, car horn, honking",anthropophony,Sounds of things
+303,Toot,anthropophony,Sounds of things
+304,Car alarm,anthropophony,Sounds of things
+305,"Power windows, electric windows",anthropophony,Sounds of things
+306,Skidding,anthropophony,Sounds of things
+307,Tire squeal,anthropophony,Sounds of things
+308,Car passing by,anthropophony,Sounds of things
+309,"Race car, auto racing",anthropophony,Sounds of things
+310,Truck,anthropophony,Sounds of things
+311,Air brake,anthropophony,Sounds of things
+312,"Air horn, truck horn",anthropophony,Sounds of things
+313,Reversing beeps,anthropophony,Sounds of things
+314,"Ice cream truck, ice cream van",anthropophony,Sounds of things
+315,Bus,anthropophony,Sounds of things
+316,Emergency vehicle,anthropophony,Sounds of things
+317,Police car (siren),anthropophony,Sounds of things
+318,Ambulance (siren),anthropophony,Sounds of things
+319,"Fire engine, fire truck (siren)",anthropophony,Sounds of things
+320,Motorcycle,anthropophony,Sounds of things
+321,"Traffic noise, roadway noise",anthropophony,Sounds of things
+322,Rail transport,anthropophony,Sounds of things
+323,Train,anthropophony,Sounds of things
+324,Train whistle,anthropophony,Sounds of things
+325,Train horn,anthropophony,Sounds of things
+326,"Railroad car, train wagon",anthropophony,Sounds of things
+327,Train wheels squealing,anthropophony,Sounds of things
+328,"Subway, metro, underground",anthropophony,Sounds of things
+329,Aircraft,anthropophony,Sounds of things
+330,Aircraft engine,anthropophony,Sounds of things
+331,Jet engine,anthropophony,Sounds of things
+332,"Propeller, airscrew",anthropophony,Sounds of things
+333,Helicopter,anthropophony,Sounds of things
+334,"Fixed-wing aircraft, airplane",anthropophony,Sounds of things
+335,Bicycle,anthropophony,Sounds of things
+336,Skateboard,anthropophony,Sounds of things
+337,Engine,anthropophony,Sounds of things
+338,Light engine (high frequency),anthropophony,Sounds of things
+339,"Dental drill, dentist's drill",anthropophony,Sounds of things
+340,Lawn mower,anthropophony,Sounds of things
+341,Chainsaw,anthropophony,Sounds of things
+342,Medium engine (mid frequency),anthropophony,Sounds of things
+343,Heavy engine (low frequency),anthropophony,Sounds of things
+344,Engine knocking,anthropophony,Sounds of things
+345,Engine starting,anthropophony,Sounds of things
+346,Idling,anthropophony,Sounds of things
+347,"Accelerating, revving, vroom",anthropophony,Sounds of things
+348,Door,anthropophony,Sounds of things
+349,Doorbell,anthropophony,Sounds of things
+350,Ding-dong,anthropophony,Sounds of things
+351,Sliding door,anthropophony,Sounds of things
+352,Slam,anthropophony,Sounds of things
+353,Knock,anthropophony,Sounds of things|Source-ambiguous sounds
+354,Tap,anthropophony,Sounds of things|Source-ambiguous sounds
+355,Squeak,anthropophony,Sounds of things|Source-ambiguous sounds
+356,Cupboard open or close,anthropophony,Sounds of things
+357,Drawer open or close,anthropophony,Sounds of things
+358,"Dishes, pots, and pans",anthropophony,Sounds of things
+359,"Cutlery, silverware",anthropophony,Sounds of things
+360,Chopping (food),anthropophony,Sounds of things
+361,Frying (food),anthropophony,Sounds of things
+362,Microwave oven,anthropophony,Sounds of things
+363,Blender,anthropophony,Sounds of things
+364,"Water tap, faucet",anthropophony,Sounds of things
+365,Sink (filling or washing),anthropophony,Sounds of things
+366,Bathtub (filling or washing),anthropophony,Sounds of things
+367,Hair dryer,anthropophony,Sounds of things
+368,Toilet flush,anthropophony,Sounds of things
+369,Toothbrush,anthropophony,Sounds of things
+370,Electric toothbrush,anthropophony,Sounds of things
+371,Vacuum cleaner,anthropophony,Sounds of things
+372,Zipper (clothing),anthropophony,Sounds of things
+373,Keys jangling,anthropophony,Sounds of things
+374,Coin (dropping),anthropophony,Sounds of things
+375,Scissors,anthropophony,Sounds of things
+376,"Electric shaver, electric razor",anthropophony,Sounds of things
+377,Shuffling cards,anthropophony,Sounds of things
+378,Typing,anthropophony,Sounds of things
+379,Typewriter,anthropophony,Sounds of things
+380,Computer keyboard,anthropophony,Sounds of things
+381,Writing,anthropophony,Sounds of things
+382,Alarm,anthropophony,Sounds of things
+383,Telephone,anthropophony,Sounds of things
+384,Telephone bell ringing,anthropophony,Sounds of things
+385,Ringtone,anthropophony,Sounds of things
+386,"Telephone dialing, DTMF",anthropophony,Sounds of things
+387,Dial tone,anthropophony,Sounds of things
+388,Busy signal,anthropophony,Sounds of things
+389,Alarm clock,anthropophony,Sounds of things
+390,Siren,anthropophony,Sounds of things
+391,Civil defense siren,anthropophony,Sounds of things
+392,Buzzer,anthropophony,Sounds of things
+393,"Smoke detector, smoke alarm",anthropophony,Sounds of things
+394,Fire alarm,anthropophony,Sounds of things
+395,Foghorn,anthropophony,Sounds of things
+396,Whistle,anthropophony,Sounds of things
+397,Steam whistle,anthropophony,Sounds of things
+398,Mechanisms,anthropophony,Sounds of things
+399,"Ratchet, pawl",anthropophony,Sounds of things
+400,Clock,anthropophony,Sounds of things
+401,Tick,anthropophony,Sounds of things|Source-ambiguous sounds
+402,Tick-tock,anthropophony,Sounds of things
+403,Gears,anthropophony,Sounds of things
+404,Pulleys,anthropophony,Sounds of things
+405,Sewing machine,anthropophony,Sounds of things
+406,Mechanical fan,anthropophony,Sounds of things
+407,Air conditioning,anthropophony,Sounds of things
+408,Cash register,anthropophony,Sounds of things
+409,Printer,anthropophony,Sounds of things
+410,Camera,anthropophony,Sounds of things
+411,Single-lens reflex camera,anthropophony,Sounds of things
+412,Tools,anthropophony,Sounds of things
+413,Hammer,anthropophony,Sounds of things
+414,Jackhammer,anthropophony,Sounds of things
+415,Sawing,anthropophony,Sounds of things
+416,Filing (rasp),anthropophony,Sounds of things
+417,Sanding,anthropophony,Sounds of things
+418,Power tool,anthropophony,Sounds of things
+419,Drill,anthropophony,Sounds of things
+420,Explosion,anthropophony,Sounds of things
+421,"Gunshot, gunfire",anthropophony,Sounds of things
+422,Machine gun,anthropophony,Sounds of things
+423,Fusillade,anthropophony,Sounds of things
+424,Artillery fire,anthropophony,Sounds of things
+425,Cap gun,anthropophony,Sounds of things
+426,Fireworks,anthropophony,Sounds of things
+427,Firecracker,anthropophony,Sounds of things
+428,"Burst, pop",anthropophony,Sounds of things
+429,Eruption,anthropophony,Sounds of things
+430,Boom,anthropophony,Sounds of things
+431,Wood,anthropophony,Sounds of things
+432,Chop,anthropophony,Sounds of things
+433,Splinter,anthropophony,Sounds of things
+434,Crack,anthropophony,Sounds of things|Source-ambiguous sounds
+435,Glass,anthropophony,Sounds of things
+436,"Chink, clink",anthropophony,Sounds of things
+437,Shatter,anthropophony,Sounds of things
+438,Liquid,anthropophony,Sounds of things
+439,"Splash, splatter",anthropophony,Sounds of things
+440,Slosh,anthropophony,Sounds of things
+441,Squish,anthropophony,Sounds of things|Source-ambiguous sounds
+442,Drip,anthropophony,Sounds of things
+443,Pour,anthropophony,Sounds of things
+444,"Trickle, dribble",anthropophony,Sounds of things
+445,Gush,anthropophony,Sounds of things
+446,Fill (with liquid),anthropophony,Sounds of things
+447,Spray,anthropophony,Sounds of things
+448,Pump (liquid),anthropophony,Sounds of things
+449,Stir,anthropophony,Sounds of things
+450,Boiling,anthropophony,Sounds of things
+451,Sonar,anthropophony,Sounds of things
+452,Arrow,anthropophony,Sounds of things
+453,"Whoosh, swoosh, swish",anthropophony,Sounds of things|Source-ambiguous sounds
+454,"Thump, thud",anthropophony,Sounds of things|Source-ambiguous sounds
+455,Thunk,anthropophony,Sounds of things|Source-ambiguous sounds
+456,Electronic tuner,anthropophony,Sounds of things
+457,Effects unit,anthropophony,Sounds of things
+458,Chorus effect,anthropophony,Sounds of things
+459,Basketball bounce,anthropophony,Sounds of things
+460,Bang,other,Source-ambiguous sounds
+461,"Slap, smack",other,Source-ambiguous sounds
+462,"Whack, thwack",other,Source-ambiguous sounds
+463,"Smash, crash",other,Source-ambiguous sounds
+464,Breaking,other,Source-ambiguous sounds
+465,Bouncing,other,Source-ambiguous sounds
+466,Whip,other,Source-ambiguous sounds
+467,Flap,other,Source-ambiguous sounds
+468,Scratch,other,Source-ambiguous sounds
+469,Scrape,other,Source-ambiguous sounds
+470,Rub,other,Source-ambiguous sounds
+471,Roll,other,Source-ambiguous sounds
+472,Crushing,other,Source-ambiguous sounds
+473,"Crumpling, crinkling",other,Source-ambiguous sounds
+474,Tearing,other,Source-ambiguous sounds
+475,"Beep, bleep",other,Source-ambiguous sounds
+476,Ping,other,Source-ambiguous sounds
+477,Ding,other,Source-ambiguous sounds
+478,Clang,other,Source-ambiguous sounds
+479,Squeal,other,Source-ambiguous sounds
+480,Creak,other,Source-ambiguous sounds
+481,Rustle,other,Source-ambiguous sounds
+482,Whir,other,Source-ambiguous sounds
+483,Clatter,other,Source-ambiguous sounds
+484,Sizzle,other,Source-ambiguous sounds
+485,Clicking,other,Source-ambiguous sounds
+486,Clickety-clack,other,Source-ambiguous sounds
+487,Rumble,other,Source-ambiguous sounds
+488,Plop,other,Source-ambiguous sounds
+489,"Jingle, tinkle",other,Source-ambiguous sounds
+490,Hum,other,Source-ambiguous sounds
+491,Zing,other,Source-ambiguous sounds
+492,Boing,other,Source-ambiguous sounds
+493,Crunch,other,Source-ambiguous sounds
+494,Silence,other,Source-ambiguous sounds
+495,Sine wave,other,Source-ambiguous sounds
+496,Harmonic,other,Source-ambiguous sounds
+497,Chirp tone,other,Source-ambiguous sounds
+498,Sound effect,other,Source-ambiguous sounds
+499,Pulse,other,Source-ambiguous sounds
+500,"Inside, small room",other,"Channel, environment and background"
+501,"Inside, large room or hall",other,"Channel, environment and background"
+502,"Inside, public space",other,"Channel, environment and background"
+503,"Outside, urban or manmade",other,"Channel, environment and background"
+504,"Outside, rural or natural",other,"Channel, environment and background"
+505,Reverberation,other,"Channel, environment and background"
+506,Echo,other,"Channel, environment and background"
+507,Noise,other,"Channel, environment and background"
+508,Environmental noise,other,"Channel, environment and background"
+509,Static,other,"Channel, environment and background"
+510,Mains hum,other,"Channel, environment and background"
+511,Distortion,other,"Channel, environment and background"
+512,Sidetone,other,"Channel, environment and background"
+513,Cacophony,other,"Channel, environment and background"
+514,White noise,other,"Channel, environment and background"
+515,Pink noise,other,"Channel, environment and background"
+516,Throbbing,other,"Channel, environment and background"
+517,Vibration,other,"Channel, environment and background"
+518,Television,other,"Channel, environment and background"
+519,Radio,other,"Channel, environment and background"
+520,Field recording,other,"Channel, environment and background"
