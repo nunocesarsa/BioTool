@@ -158,3 +158,18 @@ def test_loud_indices_skip_quiet_frames():
     frames = np.stack([np.full(100, 1e-4), np.sin(np.linspace(0, 50, 100)) * 0.1]).astype(np.float32)
     assert list(m.loud_indices(frames)) == [1]
     assert list(ModelAdapter().loud_indices(frames)) == [0, 1]
+
+
+# ---------------------------------------------------------------- optional DeepForestSound adapter
+def test_deepforestsound_registered_with_paper_thresholds():
+    from biotool.models import DETECTORS
+    from biotool.models.dfs import SPECIES, DeepForestSound
+
+    assert "dfs" in DETECTORS
+    ok, why = DeepForestSound.availability()
+    assert isinstance(ok, bool) and (ok or "InstallDeepForestSound" in why)
+    assert len(SPECIES) == 12 and dict((s[0], s[3]) for s in SPECIES)["pan_troglodytes"] == 0.99
+    m = DeepForestSound()
+    assert m._thresholds()[8] == 0.99  # per-species thresholds by default
+    m.options["thresholds"] = "min score above"
+    assert (m._thresholds() == m.threshold).all()

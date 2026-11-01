@@ -79,6 +79,11 @@ class ModelAdapter:
         """`audio` is mono float32 at self.samplerate; `offset_s` is its start time in the file."""
         raise NotImplementedError
 
+    @classmethod
+    def availability(cls) -> tuple[bool, str]:
+        """(usable, reason). Optional models override this (e.g. when extra packages are missing)."""
+        return True, ""
+
     def loud_indices(self, frames: np.ndarray) -> np.ndarray:
         """Indices of frames to analyse: all, or only those louder than quiet_dbfs (RMS, dB full scale)."""
         if self.quiet_dbfs is None or len(frames) == 0:

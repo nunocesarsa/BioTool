@@ -28,7 +28,7 @@ def available_models(run_dir: str | Path) -> list[str]:
 
 
 def _is_species(df: pd.DataFrame) -> pd.Series:
-    return (df["model"].isin(["birdnet", "perch_v2"]) & (df["scientific_name"].astype(str) != "")
+    return (df["model"].isin(["birdnet", "perch_v2", "dfs"]) & (df["scientific_name"].astype(str) != "")
             & ~df["label_key"].astype(str).str.contains(":"))
 
 

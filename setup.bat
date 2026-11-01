@@ -10,7 +10,10 @@ if errorlevel 1 (
 )
 
 echo Installing BioTool dependencies (first time takes a few minutes, ~1.5 GB) ...
-uv sync
+REM keep optional extras (e.g. DeepForestSound) installed if they were added before
+set "EXTRAS="
+if exist ".venv\biotool-extras.txt" set "EXTRAS=--extra dfs"
+uv sync %EXTRAS%
 if errorlevel 1 (
     echo.
     echo Setup failed - see the messages above.

@@ -38,7 +38,10 @@ def analyse_selection(engine: Engine, path: str, start_s: float, end_s: float,
         if band_hz:
             from .gui.player import band_filter
             x = band_filter(x, sr, *band_hz)
-        x = resample(x, sr, m.samplerate)
+        if getattr(m, "native_sr", False):
+            m.input_sr = sr
+        else:
+            x = resample(x, sr, m.samplerate)
         if span > end_s - start_s + 1e-6:
             notes.append(f"{m.name}: widened to {a:.1f}-{b:.1f} s (its {win:g} s window)")
 
@@ -48,6 +51,9 @@ def analyse_selection(engine: Engine, path: str, start_s: float, end_s: float,
             m.threshold, m.max_per_window, m.quiet_dbfs = 0.005, max(20, top_k * 3), None
             if key == "yamnet":
                 m.options["group_s"] = max(0.96, b - a)
+            elif key == "dfs":
+                m.options["overlap_s"] = max(0.0, win - max(1.0, hop_s))
+                m.options["thresholds"] = "min score above"  # show raw scores; flagged below
             else:
                 m.options["overlap_s"] = max(0.0, win - hop_s)
             out = m.process(x, a, "selection")
@@ -59,6 +65,11 @@ def analyse_selection(engine: Engine, path: str, start_s: float, end_s: float,
         det = fill_common_names(det)
         n_windows = max(1, det["start_s"].nunique())
         min_score = saved[0]
+        if key == "dfs" and str(saved[3].get("thresholds", "per species")).startswith("per species"):
+            from .models.dfs import SPECIES as DFS_SPECIES
+            sp_thr = {s[1].lower(): s[3] for s in DFS_SPECIES}
+        else:
+            sp_thr = {}
         if engine.location is not None:
             _, removed, _ = engine.location.apply(det, path)
             out_of_range = set(removed["label_key"])
@@ -74,10 +85,11 @@ def analyse_selection(engine: Engine, path: str, start_s: float, end_s: float,
             name = best["scientific_name"] or best["common_name"] or best["label"]
             note = ", ".join(n for n, flag in (("out of range (location filter)", lk in out_of_range),
                                               ("filtered by species list", lk in off_list)) if flag)
+            ms = sp_thr.get(lk, min_score)
             rows.append(dict(model=key, name=name, common_name=best["common_name"], group=best["group"],
                              max_score=round(float(d["score"].max()), 4),
-                             above_min_score="yes" if d["score"].max() >= min_score else "no",
-                             windows_found=f"{int((d['score'] >= min_score).sum())}/{n_windows}",
+                             above_min_score="yes" if d["score"].max() >= ms else "no",
+                             windows_found=f"{int((d['score'] >= ms).sum())}/{n_windows}",
                              best_at_s=round(float(best["start_s"]), 2), note=note))
     df = pd.DataFrame(rows, columns=COLUMNS)
     if len(df):

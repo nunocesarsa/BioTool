@@ -13,6 +13,7 @@ to and check detections.
 | **Perch v2** (Google) | ~15k classes: birds, amphibians, mammals, insects (+ ~200 sound-event classes) | 5 s | Apache 2.0 |
 | **YAMNet** (AudioSet) | 521 sound classes: speech, vehicles, aircraft, wind, rain, insects, frogs... | 0.96 s → 3 s | Apache 2.0 |
 | **Acoustic indices** (scikit-maad) | ACI, ADI, AEI, BI, NDSI, entropy, level – per minute | 60 s | BSD |
+| **DeepForestSound** (optional, MNHN) | 12 species of African tropical forests: forest elephant rumbles, chimpanzee, 2 monkeys, 8 birds | 10 s | CC BY-NC-SA 4.0 (non-commercial) |
 
 Every model also saves **embeddings** (feature vectors per window) for clustering unknown sounds,
 search-by-example and training custom classifiers later.
@@ -32,6 +33,16 @@ Models are downloaded automatically **the first time each one is used** and cach
 - Perch v2 and YAMNet from Kaggle Models (public, no account needed).
 
 Manual install (any OS): `uv sync` then `uv run biotool-gui`.
+
+**Optional: DeepForestSound** (African tropical forests) – double-click **`InstallDeepForestSound.bat`**
+(adds PyTorch, ~500 MB; or `uv sync --extra dfs`), restart BioTool and tick it in the model list. Its code
+and weights (~700 MB, pinned to a tested version, checksums verified) download from the
+[DeepForestSound repository](https://github.com/MNHN-OFVI/DeepForestSound) the first time it runs; BioTool
+does not redistribute them. DFS is a **specialist**: trained in Kibale National Park (Uganda) for
+12 species, it can give high scores to unrelated sounds elsewhere (on North American recordings its
+chimpanzee score reached 0.96). That is why BioTool uses the per-species thresholds suggested by the DFS
+authors by default (chimpanzee 0.99, doves 0.10, …; *Advanced → Thresholds*); with them it reported no
+false detections on the Powdermill test files. Check a sample of detections when using it at new sites.
 
 **Test data** – double-click **`GetTestData.bat`** (or `uv run biotool get-test-data`) to download
 the BirdNET example recording, a 100-clip ESC-50 sample and a 20-minute Powdermill sample with
@@ -198,7 +209,9 @@ downloads keep their own licences – please respect and cite them:
 | Perch v2 | Apache 2.0 | van Merriënboer et al. (2025) Perch 2.0: The Bittern Lesson for Bioacoustics. arXiv:2508.04665 |
 | YAMNet | Apache 2.0 | Google Research, TensorFlow Model Garden (AudioSet ontology: Gemmeke et al. 2017) |
 | scikit-maad | BSD-3 | Ulloa et al. (2021) scikit-maad. *Methods in Ecology and Evolution* 12 |
+| DeepForestSound (optional) | CC BY-NC-SA 4.0 – **non-commercial** | Dubus et al. (2026) DeepForestSound: A Multi-Species Automatic Detector for Passive Acoustic Monitoring in African Tropical Forests. arXiv:2604.08087 |
 | Powdermill test data | free use, please cite | Chronister et al. (2021) *Ecology* 102: e03329 |
 | ESC-50 test data | CC BY-NC (ESC-10 subset CC BY) | Piczak (2015) ESC: Dataset for Environmental Sound Classification. ACM Multimedia |
 
-Because BirdNET's model is non-commercial, results produced with it inherit that restriction.
+Because the BirdNET and DeepForestSound models are non-commercial, results produced with them inherit
+that restriction.

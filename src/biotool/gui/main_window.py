@@ -49,7 +49,7 @@ class ModelPanel(QWidget):
         self.adv: dict[str, dict] = {}
         for key, cls in DETECTORS.items():
             cb = QCheckBox(cls.name)
-            cb.setChecked(key in ("birdnet", "perch_v2", "yamnet"))
+            cb.setChecked(key in ("birdnet", "perch_v2", "yamnet"))  # optional models start unticked
             cb.setToolTip(f"{cls.description}\n{cls.licence_note}")
             th = QDoubleSpinBox()
             th.setDecimals(3)
@@ -62,11 +62,19 @@ class ModelPanel(QWidget):
             r.addWidget(QLabel("min score"))
             r.addWidget(th)
             form.addLayout(r)
-            desc = QLabel(cls.description)
+            ok, why = cls.availability()
+            desc = QLabel(cls.description + ("" if ok else f"<br><b>{why}</b>"))
             desc.setWordWrap(True)
             desc.setObjectName("muted")
             desc.setStyleSheet("font-size: 9pt; margin-left: 20px;")
             form.addWidget(desc)
+            if not ok:
+                cb.setChecked(False)
+                cb.setEnabled(False)
+                th.setEnabled(False)
+            if key == "dfs":
+                th.setToolTip("Used only when Advanced > Thresholds = 'min score above'.\n"
+                              "By default DFS uses the per-species thresholds from its paper.")
             self.rows[key] = (cb, th)
             self._add_advanced(form, key, cls)
         self.indices = QCheckBox(AcousticIndices.name)
@@ -303,7 +311,7 @@ class ModelPanel(QWidget):
         f = lambda v, d: d if v is None else float(v)
         old = int(f(q.value("settings_version"), 0)) < SETTINGS_VERSION
         for k, (cb, th) in self.rows.items():
-            cb.setChecked(b(q.value(f"models/{k}/on"), cb.isChecked()))
+            cb.setChecked(b(q.value(f"models/{k}/on"), cb.isChecked()) and cb.isEnabled())
             if not (old and k in RETUNED_DEFAULTS):  # keep new defaults that replaced old ones
                 th.setValue(f(q.value(f"models/{k}/threshold"), th.value()))
         for k in self.adv:
@@ -383,6 +391,9 @@ class SingleFileTab(QWidget):
         self.spec_plot = pg.PlotWidget()
         self.spec_plot.setLabel("left", "Frequency", units="kHz")
         self.spec_plot.setMouseEnabled(x=True, y=False)
+        self.spec_plot.getAxis("left").enableAutoSIPrefix(False)
+        self.spec_plot.setXRange(0, 60, padding=0)
+        self.spec_plot.setYRange(0, 24, padding=0)
         self.img = pg.ImageItem()
         self.img.setColorMap(pg.colormap.get("viridis"))
         self.spec_plot.addItem(self.img)
@@ -393,6 +404,9 @@ class SingleFileTab(QWidget):
 
         self.lanes = pg.PlotWidget()
         self.lanes.setLabel("bottom", "Time", units="s")
+        self.lanes.getAxis("bottom").enableAutoSIPrefix(False)
+        self.lanes.getAxis("left").setTicks([[]])
+        self.lanes.setYRange(-0.6, 0.6, padding=0)
         self.lanes.setXLink(self.spec_plot)
         self.lanes.setMouseEnabled(x=True, y=False)
         self.lanes.setMaximumHeight(170)
@@ -517,6 +531,9 @@ class SingleFileTab(QWidget):
         ready = not busy and self.path is not None and self.S_raw is not None
         self.run_btn.setEnabled(ready)
         self.analyse_btn.setEnabled(ready)
+        loaded = self.S_raw is not None
+        self.view.box_btn.setEnabled(loaded)
+        self.view.export_btn.setEnabled(loaded)
 
     def _failed(self, msg: str):
         opening = self._worker is not None and not self._worker.run_models
@@ -643,7 +660,7 @@ class SingleFileTab(QWidget):
         self.lanes.clear()
         used = self.run_settings.models if self.run_settings else {}
         models = [k for k in used if k in DETECTORS]
-        models = [m for m in models if m in set(det["model"])] or models
+        # every model that ran gets a lane, also when it found nothing (an empty lane is informative)
         self._lane_models = models
         ax = self.lanes.getAxis("left")
         ax.setTicks([[(i, DETECTORS[m].name.split(" (")[0]) for i, m in enumerate(models)]])
@@ -946,8 +963,8 @@ class MainWindow(QMainWindow):
         scroll = QScrollArea()
         scroll.setWidget(self.panel)
         scroll.setWidgetResizable(True)
-        scroll.setMinimumWidth(330)
-        scroll.setMaximumWidth(420)
+        scroll.setMinimumWidth(370)
+        scroll.setMaximumWidth(460)
 
         self.tabs = QTabWidget()
         self.tabs.setStyleSheet("QTabBar::tab { padding: 6px 14px; font-size: 10pt; }")
@@ -973,7 +990,7 @@ class MainWindow(QMainWindow):
         main = QSplitter(Qt.Horizontal)
         main.addWidget(scroll)
         main.addWidget(right)
-        main.setSizes([340, 1060])
+        main.setSizes([385, 1015])
         self.setCentralWidget(main)
 
         self.busy = QProgressBar()

@@ -1,6 +1,6 @@
 [project]
 name = "biotool"
-version = "0.3.0"
+version = "0.4.0"
 description = "Local, CPU-based multi-model bioacoustics processing tool with a desktop interface"
 readme = "README.md"
 license = { text = "MIT" }
@@ -18,6 +18,17 @@ dependencies = [
     "sounddevice>=0.4.6",
     "scikit-learn>=1.3",
     "matplotlib>=3.7",
+]
+
+[project.optional-dependencies]
+# DeepForestSound (African forest species) needs PyTorch: InstallDeepForestSound.bat / uv sync --extra dfs
+dfs = [
+    "torch>=2.2,<2.6",
+    "torchaudio>=2.2,<2.6",
+    "timm==0.4.5",
+    "peft==0.10.0",
+    "transformers==4.40.2",
+    "wget>=3.2",
 ]
 
 [dependency-groups]

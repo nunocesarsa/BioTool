@@ -151,7 +151,11 @@ class Engine:
                 raise InterruptedError("stopped")
             mblock = hp(block) if hp else block
             for key, m in self.detectors.items():
-                outs[key].extend(m.process(resample(mblock, sr, m.samplerate), offset, label))
+                if getattr(m, "native_sr", False):  # model resamples itself (e.g. DeepForestSound)
+                    m.input_sr = sr
+                    outs[key].extend(m.process(mblock, offset, label))
+                else:
+                    outs[key].extend(m.process(resample(mblock, sr, m.samplerate), offset, label))
             if self.indices:
                 row = self.indices.process(block, sr, offset, label)
                 if row:
