@@ -1,15 +1,26 @@
 @echo off
 REM Installs the optional DeepForestSound model (African forest species).
-REM Adds PyTorch (~500 MB). The model files (~700 MB) download the first time DFS is used.
+REM Adds PyTorch (shared with the other optional PyTorch models).
+REM The model files (~700 MB) download the first time DFS is used.
 cd /d "%~dp0"
 set "PATH=%USERPROFILE%\.local\bin;%PATH%"
-uv sync --extra dfs
+REM optional extras installed before (one per line in .venv\biotool-extras.txt) are kept
+set "EXTRAS="
+if exist ".venv\biotool-extras.txt" for /f "usebackq tokens=1" %%e in (".venv\biotool-extras.txt") do call :addextra %%e
+call :addextra dfs
+uv sync%EXTRAS%
 if errorlevel 1 (
     echo Installation failed - see the messages above.
     pause
     exit /b 1
 )
-echo dfs> ".venv\biotool-extras.txt"
+if exist ".venv\biotool-extras.txt" del ".venv\biotool-extras.txt"
+for %%e in (%EXTRAS:--extra =%) do echo %%e>> ".venv\biotool-extras.txt"
 echo.
 echo DeepForestSound support installed. Restart BioTool and tick it in the model list.
 pause
+exit /b 0
+
+:addextra
+echo %EXTRAS% | find "--extra %1 " >nul || set "EXTRAS=%EXTRAS% --extra %1 "
+exit /b 0

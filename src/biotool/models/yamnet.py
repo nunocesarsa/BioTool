@@ -70,6 +70,12 @@ class YAMNet(ModelAdapter):
             progress(f"YAMNet: ignore list has unknown class names: {', '.join(sorted(unknown))}")
         self._keep = np.array([l not in ignore for l in self.labels])
 
+    def hop_s(self) -> float:
+        return float(self.options.get("group_s", self.window_s))
+
+    def window_len_s(self) -> float:
+        return self.hop_s()
+
     def process(self, audio, offset_s, file):
         out = ModelOutput()
         if len(audio) < int(FRAME_LEN_S * self.samplerate):

@@ -83,10 +83,13 @@ class PerchV2(ModelAdapter):
         emb = out["embedding"].numpy() if "embedding" in out else None
         return logits, emb
 
+    def hop_s(self) -> float:
+        return max(0.5, self.window_s - float(self.options.get("overlap_s", 0.0) or 0.0))
+
     def process(self, audio, offset_s, file):
         out = ModelOutput()
         win = int(self.window_s * self.samplerate)
-        hop_s = max(0.5, self.window_s - float(self.options.get("overlap_s", 0.0)))
+        hop_s = self.hop_s()
         hop = int(hop_s * self.samplerate)
         frames = frame_signal(audio, win, hop)
         idx = self.loud_indices(frames)  # before normalisation (which removes level information)

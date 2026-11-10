@@ -173,3 +173,118 @@ def test_deepforestsound_registered_with_paper_thresholds():
     assert m._thresholds()[8] == 0.99  # per-species thresholds by default
     m.options["thresholds"] = "min score above"
     assert (m._thresholds() == m.threshold).all()
+
+
+def test_birdcode_registered_with_original_defaults():
+    from biotool.models import DETECTORS
+    from biotool.models.birdcode import BirdCODE
+
+    assert DETECTORS["birdcode"] is BirdCODE
+    ok, msg = BirdCODE.availability()
+    assert ok or "InstallBirdCODE.bat" in msg
+    m = BirdCODE(embeddings=True)  # pipeline passes embeddings=...; BirdCODE has none
+    assert m.threshold == 0.5 and "embeddings" not in m.options
+    assert m.pp_config() == {"merge_max_gap": 1.0, "nms": {"iou_threshold": 0.8}}
+    assert BirdCODE(merge_gap_s=0).pp_config() == {"nms": {"iou_threshold": 0.8}}
+
+
+def test_birdcode_gets_whole_recording_not_blocks():
+    from biotool.models.birdcode import BirdCODE
+
+    m = BirdCODE()
+    assert m.whole_file
+    m.add_block(np.ones(10, np.float32), 48000, 0.0)
+    m.add_block(np.ones(5, np.float32), 48000, 60.0)
+    assert sum(len(b) for b in m._blocks) == 15
+    m.add_block(np.zeros(3, np.float32), 44100, 0.0)  # next file: earlier audio is dropped
+    assert sum(len(b) for b in m._blocks) == 3 and m._block_sr == 44100
+
+
+def _win(file, model, sci, starts, w, score=0.8):
+    return [dict(file=file, start_s=s, end_s=s + w, model=model, label=sci, label_key=sci.lower(),
+                 scientific_name=sci, common_name="", group="biophony", score=score) for s in starts]
+
+
+def test_sound_intervals_join_consecutive_windows():
+    from biotool.events import build_events
+
+    det = pd.DataFrame(_win("a.wav", "birdnet", "Turdus merula", [0, 3, 6, 15], 3.0))
+    ev = build_events(det, {"birdnet": 3.0})
+    got = [(r.start_s, r.end_s, r.outer_start_s, r.outer_end_s, r.n_windows) for r in ev.itertuples()]
+    # centre of first -> centre of last window; a lone window is one window step long
+    assert got == [(1.5, 7.5, 0.0, 9.0, 3), (15.0, 18.0, 15.0, 18.0, 1)]
+
+
+def test_sound_intervals_overlap_and_block_edges():
+    from biotool.events import build_events
+
+    # 3 s windows every 0.5 s; windows restart at the 60 s block edge (57 -> 60)
+    det = pd.DataFrame(_win("a.wav", "birdnet", "Turdus merula", [56.0, 56.5, 57.0, 60.0, 60.5, 64.0], 3.0))
+    ev = build_events(det, {"birdnet": 0.5}, block_s=60.0)
+    assert [(r.start_s, r.end_s, r.n_windows) for r in ev.itertuples()] == [(57.5, 62.0, 5), (65.25, 65.75, 1)]
+
+
+def test_sound_intervals_use_birdcode_times_for_birds():
+    from biotool.events import build_events
+
+    det = pd.DataFrame(_win("a.wav", "birdnet", "Turdus merula", [0, 3], 3.0)
+                       + _win("a.wav", "birdcode", "Turdus merula", [], 0)
+                       + [dict(file="a.wav", start_s=2.2, end_s=2.9, model="birdcode", label="Turdus merula",
+                               label_key="turdus merula", scientific_name="Turdus merula", common_name="",
+                               group="biophony", score=0.7),
+                          dict(file="a.wav", start_s=4.1, end_s=4.6, model="birdcode", label="Turdus merula",
+                               label_key="turdus merula", scientific_name="Turdus merula", common_name="",
+                               group="biophony", score=0.6)])
+    ev = build_events(det, {"birdnet": 3.0})
+    bn = ev[ev.model == "birdnet"].iloc[0]
+    assert (bn.start_s, bn.end_s, bn.method, bn.n_calls) == (2.2, 4.6, "birdcode", 2)
+    assert (ev.model == "birdcode").sum() == 2
+    assert build_events(det, {"birdnet": 3.0}, use_birdcode=False).query("model == 'birdnet'").method.iloc[0] == "windows"
+
+
+def test_spectrogram_blobs_find_a_tone_and_only_trim_intervals():
+    from biotool.events import build_events, find_blobs, refine_with_blobs
+
+    sr = 22050
+    t = np.arange(10 * sr) / sr
+    rng = np.random.default_rng(0)
+    x = 0.01 * rng.standard_normal(len(t))
+    on = (t >= 4.0) & (t < 5.0)
+    ramp = np.clip(np.minimum(t[on] - 4.0, 5.0 - t[on]) / 0.02, 0, 1)  # 20 ms fades, no clicks
+    x[on] += 0.05 * ramp * np.sin(2 * np.pi * 3000 * t[on])  # 1 s tone at 3 kHz
+    assert len(find_blobs((0.01 * rng.standard_normal(len(t))).astype(np.float32), sr)) == 0  # hiss only
+    blobs = find_blobs(x.astype(np.float32), sr)
+    k = blobs.loc[blobs["energy"].idxmax()]
+    assert abs(k.start_s - 4.0) < 0.1 and abs(k.end_s - 5.0) < 0.1
+    assert k.low_hz < 3000 < k.high_hz and k.high_hz - k.low_hz < 1500
+
+    det = pd.DataFrame(_win("a.wav", "birdnet", "Turdus merula", [3.0], 3.0))  # window 3-6 s
+    ev = refine_with_blobs(build_events(det, {"birdnet": 3.0}), blobs).iloc[0]
+    assert ev.method == "windows+spectrogram"
+    assert 3.0 <= ev.start_s and ev.end_s <= 6.0 and abs(ev.start_s - 4.0) < 0.1 and abs(ev.end_s - 5.0) < 0.1
+    assert ev.low_hz < 3000 < ev.high_hz
+
+
+def test_single_run_is_saved_and_read_back(tmp_path):
+    from biotool.pipeline import FileResult, RunSettings, read_file_result, read_run, save_single_run
+
+    det = pd.DataFrame(_win("rec.wav", "birdnet", "Turdus merula", [0.0, 3.0], 3.0))
+    ev = pd.DataFrame([dict(file="rec.wav", start_s=1.5, end_s=4.5, duration_s=3.0, model="birdnet",
+                            label="Turdus merula", label_key="turdus merula", scientific_name="Turdus merula",
+                            common_name="", group="biophony", max_score=0.8, n_windows=2, outer_start_s=0,
+                            outer_end_s=6, method="windows", n_calls=0, low_hz=None, high_hz=None)])
+    from biotool.models.indices import INDEX_COLUMNS
+
+    res = FileResult(tmp_path / "rec.wav", 60.0, 48000, det, pd.DataFrame(columns=INDEX_COLUMNS), {}, 1.0,
+                     [], None, "", ev)
+    s = RunSettings(models={"birdnet": {"threshold": 0.4}}, events=True, grid_s=5.0)
+    a = save_single_run(res, tmp_path / "runs", s)
+    b = save_single_run(res, tmp_path / "runs", s)  # same second: a new folder, nothing overwritten
+    assert a != b and a.parent == b.parent
+    assert (a / "detections_all.csv").exists() and (a / "sound_intervals.csv").exists()
+    settings, files = read_run(a)
+    assert settings.models == {"birdnet": {"threshold": 0.4}} and settings.events and settings.grid_s == 5.0
+    assert [f["stem"] for f in files] == ["rec"] and files[0]["samplerate"] == 48000
+    r = read_file_result(a, files[0])
+    assert len(r.detections) == 2 and r.detections["score"].dtype.kind == "f"
+    assert len(r.events) == 1 and r.events.iloc[0].end_s == 4.5 and r.duration_s == 60.0

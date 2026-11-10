@@ -10,9 +10,9 @@ if errorlevel 1 (
 )
 
 echo Installing BioTool dependencies (first time takes a few minutes, ~1.5 GB) ...
-REM keep optional extras (e.g. DeepForestSound) installed if they were added before
+REM optional extras installed before (one per line in .venv\biotool-extras.txt) are kept
 set "EXTRAS="
-if exist ".venv\biotool-extras.txt" set "EXTRAS=--extra dfs"
+if exist ".venv\biotool-extras.txt" for /f "usebackq tokens=1" %%e in (".venv\biotool-extras.txt") do call :addextra %%e
 uv sync %EXTRAS%
 if errorlevel 1 (
     echo.
@@ -23,3 +23,8 @@ if errorlevel 1 (
 echo.
 echo Setup complete. Start the app with BioTool.bat
 pause
+exit /b 0
+
+:addextra
+echo %EXTRAS% | find "--extra %1 " >nul || set "EXTRAS=%EXTRAS% --extra %1 "
+exit /b 0

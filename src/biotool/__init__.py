@@ -4,4 +4,4 @@ import os as _os
 
 _os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "3")  # keep TensorFlow's start-up chatter out of the log
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"

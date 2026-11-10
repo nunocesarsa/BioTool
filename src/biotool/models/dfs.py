@@ -105,12 +105,29 @@ def ensure_files(progress=None) -> Path:
     return root
 
 
-def _load_module(name: str, path: Path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    mod = importlib.util.module_from_spec(spec)
+def _load_module(name: str, path: Path, patch=None):
+    """Import a downloaded DFS source file. `patch` may rewrite the source text in memory
+    (the downloaded file itself is never modified)."""
+    src = path.read_text(encoding="utf-8")
+    if patch:
+        src = patch(src)
+    mod = importlib.util.module_from_spec(importlib.util.spec_from_loader(name, loader=None))
+    mod.__file__ = str(path)
     sys.modules[name] = mod
-    spec.loader.exec_module(mod)
+    exec(compile(src, str(path), "exec"), mod.__dict__)
     return mod
+
+
+def _timm_compat(src: str) -> str:
+    """DFS was written for timm 0.4.5. With timm >= 1 (needed by other optional models such as
+    BirdCODE) the same DeiT model exists under a new name; nothing else changes. Validated against
+    the DFS reference outputs (see CHANGELOG)."""
+    import timm
+
+    if timm.__version__.startswith("0.4."):
+        return src
+    src = src.replace("assert timm.__version__ == '0.4.5'", "assert True or timm.__version__ == '0.4.5'")
+    return src.replace("timm.create_model('vit_deit_", "timm.create_model('deit_")
 
 
 class DeepForestSound(ModelAdapter):
@@ -148,7 +165,7 @@ class DeepForestSound(ModelAdapter):
         if self.threads:
             torch.set_num_threads(self.threads)
         root = ensure_files(progress)
-        ast = _load_module("biotool_dfs_ast_models", root / "src" / "ast_models.py")
+        ast = _load_module("biotool_dfs_ast_models", root / "src" / "ast_models.py", patch=_timm_compat)
         lora = _load_module("biotool_dfs_lora", root / "src" / "LoRA_inject.py")
         self._utils = _load_module("biotool_dfs_utils", root / "src" / "utils.py")
         if progress:
@@ -157,6 +174,9 @@ class DeepForestSound(ModelAdapter):
                   model_size="base384", verbose=False)
         self._lf = lora.inject_lora(ast.ASTModel(label_dim=1, input_tdim=TL_LF, **kw))
         self._mf = lora.inject_lora(ast.ASTModel(label_dim=len(SPECIES) - 1, input_tdim=TL_MF, **kw))
+        for m in (self._lf, self._mf):  # timm >= 1 checks the input size; DFS uses its own sizes
+            if hasattr(m.v.patch_embed, "strict_img_size"):
+                m.v.patch_embed.strict_img_size = False
         for m, rel in ((self._lf, "model_weights/DFS_LF.pth"), (self._mf, "model_weights/DFS_MF.pth")):
             m.load_state_dict(torch.load(root / rel, map_location="cpu", weights_only=True))
             m.eval()
@@ -170,6 +190,9 @@ class DeepForestSound(ModelAdapter):
             return np.array([s[3] for s in SPECIES])
         return np.full(len(SPECIES), self.threshold)
 
+    def hop_s(self) -> float:
+        return max(1.0, self.window_s - float(self.options.get("overlap_s", 0.0) or 0.0))
+
     def process(self, audio, offset_s, file):
         out = ModelOutput()
         torch, ta = self._torch, self._ta
@@ -177,7 +200,7 @@ class DeepForestSound(ModelAdapter):
         x = torch.from_numpy(np.ascontiguousarray(audio, dtype=np.float32))[None, :]
         x_lf = ta.functional.resample(x, sr, SR_LF)[0].numpy() if sr != SR_LF else x[0].numpy()
         x_mf = ta.functional.resample(x, sr, SR_MF)[0].numpy() if sr != SR_MF else x[0].numpy()
-        hop_s = max(1.0, self.window_s - float(self.options.get("overlap_s", 0.0)))
+        hop_s = self.hop_s()
         f_lf = frame_signal(x_lf, int(self.window_s * SR_LF), int(hop_s * SR_LF))
         f_mf = frame_signal(x_mf, int(self.window_s * SR_MF), int(hop_s * SR_MF))
         n = min(len(f_lf), len(f_mf))

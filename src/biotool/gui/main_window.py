@@ -8,9 +8,10 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pyqtgraph as pg
-from PySide6.QtCore import QDate, QRectF, QSettings, Qt, QThread, QTimer, QUrl
+from PySide6.QtCore import QDate, QRectF, QSettings, Qt, QThread, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QFont, QKeySequence, QShortcut
 from PySide6.QtWidgets import (QApplication, QCheckBox, QComboBox, QDateEdit, QDoubleSpinBox, QFileDialog, QFormLayout, QGroupBox,
+                               QInputDialog,
                                QHBoxLayout, QLabel, QLineEdit, QMainWindow, QMessageBox,
                                QPlainTextEdit, QProgressBar, QPushButton, QScrollArea, QSpinBox, QToolButton,
                                QSplitter, QTabWidget, QVBoxLayout, QWidget)
@@ -20,7 +21,7 @@ from ..audio import AUDIO_EXTENSIONS
 from ..models import DETECTORS, AcousticIndices
 from ..models.indices import INDEX_HELP
 from ..location import LocationSettings
-from ..pipeline import RunSettings, combine_outputs, write_file_outputs
+from ..pipeline import RunSettings, read_file_result, read_run, save_single_run
 from . import theme, workers
 from .selection_dialog import SelectionDialog
 from .table import DataFrameView
@@ -39,68 +40,177 @@ RETUNED_DEFAULTS = {"perch_v2"}  # defaults changed in v2 (Perch 0.1 -> 0.03 aft
 
 
 # ----------------------------------------------------------------------------- model panel
+def default_results_root() -> Path:
+    docs = Path.home() / "Documents"
+    return (docs if docs.is_dir() else Path.home()) / "BioTool results"
+
+
+def _muted(text: str) -> QLabel:
+    lab = QLabel(text)
+    lab.setWordWrap(True)
+    lab.setObjectName("muted")
+    lab.setStyleSheet("font-size: 9pt;")
+    return lab
+
+
 class ModelPanel(QWidget):
+    """Left side: models, outputs and where results go. The rarely changed settings live on
+    `advanced_page` (shown as the Advanced settings tab); the panel summarises which of them differ
+    from the defaults."""
+
+    open_advanced = Signal()
+
     def __init__(self):
         super().__init__()
         lay = QVBoxLayout(self)
-        box = QGroupBox("Models")
-        form = QVBoxLayout(box)
         self.rows = {}
         self.adv: dict[str, dict] = {}
+        self._loading = True
+
+        # ---- 1. models
+        step1 = QLabel("1. Choose models"); step1.setObjectName("step")
+        lay.addWidget(step1)
+        box = QGroupBox()
+        form = QVBoxLayout(box)
         for key, cls in DETECTORS.items():
             cb = QCheckBox(cls.name)
             cb.setChecked(key in ("birdnet", "perch_v2", "yamnet"))  # optional models start unticked
-            cb.setToolTip(f"{cls.description}\n{cls.licence_note}")
+            ok, why = cls.availability()
+            tip = f"{cls.description}\n{cls.licence_note}"
+            if cls.advanced:
+                tip += "\n\nMore parameters: Advanced settings tab."
+            cb.setToolTip(tip)
             th = QDoubleSpinBox()
             th.setDecimals(3)
             th.setRange(0.001, 0.99)
             th.setSingleStep(0.01 if cls.default_threshold < 0.1 else 0.05)
             th.setValue(cls.default_threshold)
-            th.setToolTip("Minimum score to report a detection")
+            th.setToolTip(f"Minimum score to report a detection (default {cls.default_threshold:g}).\n"
+                          "Lower = more detections but more false ones.")
+            if key == "dfs":
+                th.setToolTip("Used only when Advanced settings > DeepForestSound > Thresholds = 'min score above'.\n"
+                              "By default DFS uses the per-species thresholds from its paper.")
             r = QHBoxLayout()
             r.addWidget(cb, 1)
-            r.addWidget(QLabel("min score"))
+            lab = QLabel("min score"); lab.setToolTip(th.toolTip())
+            r.addWidget(lab)
             r.addWidget(th)
             form.addLayout(r)
-            ok, why = cls.availability()
-            desc = QLabel(cls.description + ("" if ok else f"<br><b>{why}</b>"))
-            desc.setWordWrap(True)
-            desc.setObjectName("muted")
-            desc.setStyleSheet("font-size: 9pt; margin-left: 20px;")
-            form.addWidget(desc)
             if not ok:
+                form.addWidget(_muted(f"<b>{why}</b>"))
                 cb.setChecked(False)
                 cb.setEnabled(False)
                 th.setEnabled(False)
-            if key == "dfs":
-                th.setToolTip("Used only when Advanced > Thresholds = 'min score above'.\n"
-                              "By default DFS uses the per-species thresholds from its paper.")
             self.rows[key] = (cb, th)
-            self._add_advanced(form, key, cls)
         self.indices = QCheckBox(AcousticIndices.name)
         self.indices.setChecked(True)
-        self.indices.setToolTip("\n".join(f"{k}: {v}" for k, v in INDEX_HELP.items()))
+        self.indices.setToolTip(AcousticIndices.description + "\n\n"
+                                + "\n".join(f"{k}: {v}" for k, v in INDEX_HELP.items()))
         form.addWidget(self.indices)
-        d = QLabel(AcousticIndices.description)
-        d.setWordWrap(True)
-        d.setObjectName("muted")
-        d.setStyleSheet("font-size: 9pt; margin-left: 20px;")
-        form.addWidget(d)
-        self._add_advanced(form, "indices", AcousticIndices)
         lay.addWidget(box)
 
-        opt = QGroupBox("Options")
-        f2 = QFormLayout(opt)
-        self.embeddings = QCheckBox("Save embeddings")
-        self.embeddings.setChecked(True)
-        self.embeddings.setToolTip("Feature vectors per window - for clustering unknown sounds,\n"
-                                   "search-by-example and training custom classifiers later.")
-        self.raven = QCheckBox("Write Raven selection tables")
-        self.raven.setChecked(True)
+        # ---- 2. outputs
+        step2 = QLabel("2. Extra outputs"); step2.setObjectName("step")
+        lay.addWidget(step2)
+        obox = QGroupBox()
+        of = QVBoxLayout(obox)
+        self.events = QCheckBox("Sound intervals (start/end per sound)")
+        self.events.setToolTip(
+            "Join consecutive windows with the same label into one interval per sound, so you can see\n"
+            "how long it lasted. Window models give the position to about 0.5 s and the start/end to\n"
+            "about 1 s (measured on the Powdermill annotations); sounds shorter than a window come out\n"
+            "about one window long. If BirdCODE also ran, bird intervals take BirdCODE's precise times.\n"
+            "Fast: computed from the detections, the models do not run again.\n"
+            "Results: 'Sound intervals' tab, and the lanes under the spectrogram show intervals.")
+        self.events_spec = QCheckBox("+ frequency band from the spectrogram")
+        self.events_spec.setToolTip(
+            "Find each sound's frequency band (low/high Hz) from the loud regions of the spectrogram\n"
+            "(scikit-maad segmentation) and trim interval edges where the sound is clearly shorter.\n"
+            "On the Powdermill annotations: band within ~0.7 kHz (low) / ~1.9 kHz (high); edges improved\n"
+            "slightly (1.00 -> 0.93 s). Adds ~0.6 s per minute of audio. Overlapping sounds (choruses,\n"
+            "rain, insects) can widen the band.")
+        self.events_spec.setStyleSheet("margin-left: 18px;")
+        self.events_spec.setEnabled(False)
+        self.events.toggled.connect(self.events_spec.setEnabled)
+        of.addWidget(self.events)
+        of.addWidget(self.events_spec)
+        lay.addWidget(obox)
+
+        # ---- 3. results folder
+        step3 = QLabel("3. Results are saved to"); step3.setObjectName("step")
+        lay.addWidget(step3)
+        rbox = QGroupBox()
+        rf = QVBoxLayout(rbox)
+        self.results_root = QLineEdit(str(default_results_root()))
+        self.results_root.setToolTip("Every run of the models is saved here, in its own folder named\n"
+                                     "<date>_<time>_<file name>. Batch runs go to the output folder you choose.")
+        rb = QPushButton("Change..."); rb.setToolTip("Choose the folder where runs are saved")
+        ro = QPushButton("Open"); ro.setToolTip("Open the results folder in the file explorer")
+        rb.clicked.connect(self._browse_results_root)
+        ro.clicked.connect(self._open_results_root)
+        rr = QHBoxLayout(); rr.addWidget(self.results_root, 1); rr.addWidget(rb); rr.addWidget(ro)
+        self.autosave = QCheckBox("Save every run automatically")
+        self.autosave.setChecked(True)
+        self.autosave.setToolTip("Write the tables (CSV, Raven, embeddings) of every model run to a new folder\n"
+                                 "in the results folder. Load them later with 'Load results...'.")
+        rf.addLayout(rr)
+        rf.addWidget(self.autosave)
+        lay.addWidget(rbox)
+
+        # ---- advanced summary
+        self.adv_summary = _muted("")
+        self.adv_summary.setTextFormat(Qt.RichText)
+        adv_btn = QPushButton("Advanced settings...")
+        adv_btn.setToolTip("Model parameters, location / season filter, species list, CPU threads,\n"
+                           "embeddings, Raven tables and other processing options")
+        adv_btn.clicked.connect(self.open_advanced.emit)
+        lay.addWidget(self.adv_summary)
+        lay.addWidget(adv_btn)
+        lay.addStretch(1)
+
+        self.advanced_page = self._build_advanced_page()
+        self._restore()
+        self._loading = False
+        self._watch(self)
+        self._watch(self.advanced_page)
+        self.update_summary()
+
+    # -- advanced settings page
+    def _build_advanced_page(self) -> QWidget:
+        page = QWidget()
+        lay = QVBoxLayout(page)
+        intro = QLabel("These settings apply to every run (single file, batch and Analyse selection). "
+                       "The defaults are what the model authors use or what BioTool's evaluation "
+                       "found best; hover over a setting for what it does. Changed settings are listed "
+                       "on the left, under the results folder.")
+        intro.setWordWrap(True)
+        lay.addWidget(intro)
+        cols = QHBoxLayout()
+        left, right = QVBoxLayout(), QVBoxLayout()
+        cols.addLayout(left, 1)
+        cols.addLayout(right, 1)
+        lay.addLayout(cols)
+
+        mp = QGroupBox("Model parameters")
+        mpl = QVBoxLayout(mp)
+        for key, cls in list(DETECTORS.items()) + [("indices", AcousticIndices)]:
+            self.adv.setdefault(key, {})
+            if not cls.advanced:
+                continue
+            g = QGroupBox(cls.name)
+            g.setToolTip(cls.description)
+            f = QFormLayout(g)
+            self._add_advanced(f, key, cls)
+            mpl.addWidget(g)
+        mpl.addStretch(1)
+        left.addWidget(mp)
+
+        proc = QGroupBox("Processing")
+        f2 = QFormLayout(proc)
         self.threads = QSpinBox()
         self.threads.setRange(1, max(1, os.cpu_count() or 1))
         self.threads.setValue(max(1, (os.cpu_count() or 2) - 1))
-        self.threads.setToolTip("CPU threads used by the models")
+        self.threads.setToolTip("CPU threads used by the models (default: all but one)")
         self.grid = QDoubleSpinBox(); self.grid.setRange(1.0, 10.0); self.grid.setSingleStep(0.5)
         self.grid.setDecimals(1); self.grid.setValue(3.0); self.grid.setSuffix(" s")
         self.grid.setToolTip("Time grid used to compare models in the agreement / sound-group tables.\n"
@@ -115,43 +225,58 @@ class ModelPanel(QWidget):
         self.quiet.setEnabled(False)
         self.quiet_on.toggled.connect(self.quiet.setEnabled)
         qrow = QHBoxLayout(); qrow.addWidget(self.quiet_on); qrow.addWidget(self.quiet)
-        f2.addRow(self.embeddings)
-        f2.addRow(self.raven)
         f2.addRow("CPU threads", self.threads)
         f2.addRow("Agreement grid", self.grid)
         f2.addRow(qrow)
-        lay.addWidget(opt)
+        right.addWidget(proc)
+
+        outs = QGroupBox("Saved outputs")
+        f5 = QVBoxLayout(outs)
+        self.embeddings = QCheckBox("Save embeddings")
+        self.embeddings.setChecked(True)
+        self.embeddings.setToolTip("Feature vectors per window - needed for the Explore sounds tab\n"
+                                   "(clustering unknown sounds) and for training custom classifiers later.")
+        self.raven = QCheckBox("Write Raven selection tables")
+        self.raven.setChecked(True)
+        self.raven.setToolTip("Write a Raven Pro selection table per file (folder 'raven' in the run),\n"
+                              "to check detections in Raven or Audacity.")
+        f5.addWidget(self.embeddings)
+        f5.addWidget(self.raven)
+        right.addWidget(outs)
 
         # custom species list
         self.sl_box = QGroupBox("Species list")
         self.sl_box.setCheckable(True)
         self.sl_box.setChecked(False)
-        self.sl_box.setToolTip("Keep only (or remove) the species in a text file - BirdNET and Perch species.")
+        self.sl_box.setToolTip("Keep only (or remove) the species in a text file - BirdNET, Perch, DFS and BirdCODE.")
         f4 = QFormLayout(self.sl_box)
         self.sl_mode = QComboBox(); self.sl_mode.addItems(["Keep only these species", "Remove these species"])
         self.sl_path = QLineEdit(); self.sl_path.setPlaceholderText("species_list.txt")
+        self.sl_path.setToolTip("Text file with one species per line")
         sl_browse = QPushButton("..."); sl_browse.setFixedWidth(32)
+        sl_browse.setToolTip("Choose the species list file")
         sl_browse.clicked.connect(self._browse_species_list)
         prow = QHBoxLayout(); prow.addWidget(self.sl_path, 1); prow.addWidget(sl_browse)
         f4.addRow(self.sl_mode)
         f4.addRow("File", prow)
-        sl_hint = QLabel("One species per line: scientific name, English name or BirdNET's "
-                         "'Scientific_Common' format. Lines starting with # are ignored.")
-        sl_hint.setWordWrap(True); sl_hint.setObjectName("muted"); sl_hint.setStyleSheet("font-size: 9pt;")
-        f4.addRow(sl_hint)
-        lay.addWidget(self.sl_box)
+        f4.addRow(_muted("One species per line: scientific name, English name or BirdNET's "
+                         "'Scientific_Common' format. Lines starting with # are ignored."))
+        right.addWidget(self.sl_box)
 
         # location / season filter
         self.loc_box = QGroupBox("Location / season filter")
         self.loc_box.setCheckable(True)
         self.loc_box.setChecked(False)
-        self.loc_box.setToolTip("Drop BirdNET/Perch species that BirdNET's range model considers\n"
-                                "unlikely at this site and time of year.")
+        self.loc_box.setToolTip("Drop species that BirdNET's range model considers unlikely at this site\n"
+                                "and time of year (BirdNET, Perch, DFS, BirdCODE).")
         f3 = QFormLayout(self.loc_box)
         self.lat = QDoubleSpinBox(); self.lat.setRange(-90, 90); self.lat.setDecimals(5)
         self.lon = QDoubleSpinBox(); self.lon.setRange(-180, 180); self.lon.setDecimals(5)
+        self.lat.setToolTip("Latitude of the recording site (decimal degrees)")
+        self.lon.setToolTip("Longitude of the recording site (decimal degrees)")
         self.date_mode = QComboBox()
         self.date_mode.addItems(["Date from file name / AudioMoth", "Fixed date", "All year"])
+        self.date_mode.setToolTip("Which week of the year to use for the species list")
         self.date_edit = QDateEdit(QDate.currentDate()); self.date_edit.setCalendarPopup(True)
         self.date_edit.setDisplayFormat("yyyy-MM-dd")
         self.date_mode.currentIndexChanged.connect(lambda i: self.date_edit.setEnabled(i == 1))
@@ -164,30 +289,22 @@ class ModelPanel(QWidget):
         f3.addRow("Date", self.date_mode)
         f3.addRow("", self.date_edit)
         f3.addRow("Min. occurrence", self.min_occ)
-        hint = QLabel("Files without a date in their name use the all-year species list.")
-        hint.setWordWrap(True)
-        hint.setObjectName("muted")
-        hint.setStyleSheet("font-size: 9pt;")
-        f3.addRow(hint)
-        lay.addWidget(self.loc_box)
-        reset = QPushButton("Reset model settings to defaults")
+        f3.addRow(_muted("Files without a date in their name use the all-year species list."))
+        right.addWidget(self.loc_box)
+        reset = QPushButton("Reset all settings to defaults")
+        reset.setToolTip("Min scores, model parameters, processing and saved-output options back to their\n"
+                         "defaults. Kept: which models are ticked, extra outputs, the location filter and\n"
+                         "species list (on/off and their values) and the results folder.")
         reset.clicked.connect(self.reset_defaults)
-        lay.addWidget(reset)
-        lay.addStretch(1)
-        self._restore()
+        right.addWidget(reset)
+        right.addStretch(1)
 
-    # -- advanced per-model settings
-    def _add_advanced(self, form, key, cls):
-        self.adv.setdefault(key, {})
-        btn = QToolButton()
-        btn.setText("Advanced")
-        btn.setCheckable(True)
-        btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        btn.setArrowType(Qt.RightArrow)
-        btn.setStyleSheet("QToolButton { border: none; color: palette(link); margin-left: 16px; }")
-        box = QWidget()
-        f = QFormLayout(box)
-        f.setContentsMargins(28, 0, 0, 6)
+        scroll = QScrollArea()
+        scroll.setWidget(page)
+        scroll.setWidgetResizable(True)
+        return scroll
+
+    def _add_advanced(self, f: QFormLayout, key, cls):
         for spec in cls.advanced:
             if spec["kind"] == "text":
                 w = QLineEdit(str(spec["default"]))
@@ -204,19 +321,12 @@ class ModelPanel(QWidget):
                 w = QDoubleSpinBox()
                 lo, hi, st = spec["range"]
                 w.setDecimals(2); w.setRange(lo, hi); w.setSingleStep(st); w.setValue(float(spec["default"]))
-            w.setToolTip(spec.get("help", ""))
+            tip = spec.get("help", "") + f"\nDefault: {spec['default']}"
+            w.setToolTip(tip.strip())
             lab = QLabel(spec["label"])
-            lab.setToolTip(spec.get("help", ""))
+            lab.setToolTip(tip.strip())
             f.addRow(lab, w)
             self.adv[key][spec["key"]] = (spec, w)
-        box.setVisible(False)
-
-        def toggle(on):
-            box.setVisible(on)
-            btn.setArrowType(Qt.DownArrow if on else Qt.RightArrow)
-        btn.toggled.connect(toggle)
-        form.addWidget(btn)
-        form.addWidget(box)
 
     def _adv_values(self, key) -> dict:
         out = {}
@@ -240,6 +350,49 @@ class ModelPanel(QWidget):
         else:
             w.setValue(float(value))
 
+    # -- summary of what differs from the defaults
+    def _watch(self, root: QWidget):
+        for w in root.findChildren(QWidget):
+            for sig in ("toggled", "valueChanged", "currentIndexChanged", "textChanged", "dateChanged"):
+                if hasattr(w, sig) and not isinstance(w, (QScrollArea, QLabel)):
+                    try:
+                        getattr(w, sig).connect(self.update_summary)
+                    except (TypeError, RuntimeError, AttributeError):
+                        pass
+
+    def changed_advanced(self) -> list[str]:
+        out = []
+        for key, items in self.adv.items():
+            name = (DETECTORS[key].name if key in DETECTORS else AcousticIndices.name).split(" (")[0]
+            for k, (spec, _) in items.items():
+                v = self._adv_values(key)[k]
+                d = spec["default"]
+                same = (abs(float(v) - float(d)) < 1e-9) if spec["kind"] in ("float", "int") else str(v) == str(d)
+                if not same:
+                    out.append(f"{name}: {spec['label'].split(' (')[0].lower()} {v}")
+        if self.loc_box.isChecked():
+            out.append(f"location filter on ({self.lat.value():.2f}, {self.lon.value():.2f})")
+        if self.sl_box.isChecked():
+            out.append(f"species list: {self.sl_mode.currentText().lower()}")
+        if self.quiet_on.isChecked():
+            out.append(f"skip windows below {self.quiet.value():.0f} dBFS")
+        if abs(self.grid.value() - 3.0) > 1e-9:
+            out.append(f"agreement grid {self.grid.value():g} s")
+        if not self.embeddings.isChecked():
+            out.append("embeddings not saved")
+        if not self.raven.isChecked():
+            out.append("no Raven tables")
+        return out
+
+    def update_summary(self, *_):
+        if self._loading:
+            return
+        ch = self.changed_advanced()
+        if ch:
+            self.adv_summary.setText("<b>Advanced settings changed:</b><br>" + "<br>".join(f"&bull; {c}" for c in ch))
+        else:
+            self.adv_summary.setText("Advanced settings: all at their defaults.")
+
     def reset_defaults(self):
         for key, cls in DETECTORS.items():
             self.rows[key][1].setValue(cls.default_threshold)
@@ -249,13 +402,31 @@ class ModelPanel(QWidget):
         self.min_occ.setValue(0.03)
         self.grid.setValue(3.0)
         self.quiet_on.setChecked(False); self.quiet.setValue(-70)
+        self.embeddings.setChecked(True)
+        self.raven.setChecked(True)
+        self.threads.setValue(max(1, (os.cpu_count() or 2) - 1))
         self._save()
+        self.update_summary()
 
     def _browse_species_list(self):
         p, _ = QFileDialog.getOpenFileName(self, "Species list", self.sl_path.text() or str(Path.home()),
                                            "Text files (*.txt *.csv);;All files (*)")
         if p:
             self.sl_path.setText(p)
+
+    def _browse_results_root(self):
+        d = QFileDialog.getExistingDirectory(self, "Folder for saved runs", self.results_root.text())
+        if d:
+            self.results_root.setText(d)
+            self._save()
+
+    def _open_results_root(self):
+        p = Path(self.results_root.text())
+        p.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(p)))
+
+    def results_dir(self) -> Path:
+        return Path(self.results_root.text().strip() or default_results_root())
 
     def settings(self) -> RunSettings:
         models = {k: {"threshold": round(th.value(), 3), **self._adv_values(k)}
@@ -277,7 +448,9 @@ class ModelPanel(QWidget):
         return RunSettings(models=models, save_embeddings=self.embeddings.isChecked(),
                            save_raven=self.raven.isChecked(), threads=self.threads.value(), location=loc,
                            grid_s=round(self.grid.value(), 2), species_list=sl,
-                           quiet_dbfs=round(self.quiet.value(), 1) if self.quiet_on.isChecked() else None)
+                           quiet_dbfs=round(self.quiet.value(), 1) if self.quiet_on.isChecked() else None,
+                           events=self.events.isChecked(),
+                           events_spectrogram=self.events.isChecked() and self.events_spec.isChecked())
 
     # -- remember settings between sessions
     def _save(self):
@@ -298,6 +471,11 @@ class ModelPanel(QWidget):
         q.setValue("sl/path", self.sl_path.text())
         q.setValue("opt/embeddings", self.embeddings.isChecked())
         q.setValue("opt/raven", self.raven.isChecked())
+        q.setValue("opt/events", self.events.isChecked())
+        q.setValue("opt/events_spec", self.events_spec.isChecked())
+        q.setValue("opt/threads", self.threads.value())
+        q.setValue("runs/root", self.results_root.text())
+        q.setValue("runs/autosave", self.autosave.isChecked())
         q.setValue("loc/on", self.loc_box.isChecked())
         q.setValue("loc/lat", self.lat.value())
         q.setValue("loc/lon", self.lon.value())
@@ -325,6 +503,12 @@ class ModelPanel(QWidget):
         self.indices.setChecked(b(q.value("models/indices/on"), True))
         self.embeddings.setChecked(b(q.value("opt/embeddings"), True))
         self.raven.setChecked(b(q.value("opt/raven"), True))
+        self.events.setChecked(b(q.value("opt/events"), False))
+        self.events_spec.setChecked(b(q.value("opt/events_spec"), False))
+        if q.value("opt/threads") is not None:
+            self.threads.setValue(int(f(q.value("opt/threads"), self.threads.value())))
+        self.results_root.setText(str(q.value("runs/root") or default_results_root()))
+        self.autosave.setChecked(b(q.value("runs/autosave"), True))
         self.loc_box.setChecked(b(q.value("loc/on"), False))
         self.lat.setValue(f(q.value("loc/lat"), 0.0))
         self.lon.setValue(f(q.value("loc/lon"), 0.0))
@@ -352,21 +536,43 @@ class SingleFileTab(QWidget):
         self._thread = None
         self._worker = None
 
-        bar = QHBoxLayout()
+        big = "QPushButton { min-height: 30px; font-size: 10.5pt; padding: 4px 14px; }"
         self.open_btn = theme.role(QPushButton("Open audio file..."), "accent")
-        self.open_btn.setToolTip("Open a recording (Ctrl+O). You can also drag a file onto the window.")
+        self.open_btn.setToolTip("Open a recording to see its spectrogram (Ctrl+O).\n"
+                                 "You can also drag a file onto the window.")
         self.run_btn = theme.role(QPushButton("Run models"), "primary")
-        self.run_btn.setToolTip("Run the ticked models on this file (Ctrl+R)")
+        self.run_btn.setToolTip("Run the ticked models on the whole file (Ctrl+R).\n"
+                                "The results are saved automatically to the results folder (left panel).")
         self.run_btn.setEnabled(False)
         self.stop_btn = theme.role(QPushButton("Stop"), "danger")
+        self.stop_btn.setToolTip("Stop the running job (nothing is saved for a stopped run)")
         self.stop_btn.setEnabled(False)
-        self.play_btn = theme.role(QPushButton("Play selection"), "accent")
-        self.play_btn.setToolTip("Play / stop the selection (Ctrl+P)")
-        self.play_btn.setEnabled(False)
-        self.run_settings = None  # settings used for the current result
-        self.save_btn = QPushButton("Save results...")
+        self.load_btn = QPushButton("Load results...")
+        self.load_btn.setToolTip("Open the results of an earlier run (single file or batch) without running\n"
+                                 "the models again (Ctrl+L). The recording is opened with them.")
+        self.save_btn = QPushButton("Open run folder")
+        self.save_btn.setToolTip("Open the folder where this run's tables were saved")
         self.save_btn.setEnabled(False)
-        self.analyse_btn = theme.role(QPushButton("Analyse selection"), "primary")
+        for w in (self.open_btn, self.run_btn, self.stop_btn, self.load_btn, self.save_btn):
+            w.setStyleSheet(big) if not w.objectName() else w.setMinimumHeight(34)
+        self.run_settings = None  # settings used for the current result
+        self.run_dir: Path | None = None  # where the current result is saved
+        self._pending = None  # loaded result waiting for its spectrogram
+        self.file_label = QLabel("No file loaded - open a recording or drag one onto the window")
+        bar = QHBoxLayout()
+        for w in (self.open_btn, self.run_btn, self.stop_btn):
+            bar.addWidget(w)
+        bar.addSpacing(16)
+        for w in (self.load_btn, self.save_btn):
+            bar.addWidget(w)
+        bar.addSpacing(12)
+        bar.addWidget(self.file_label, 1)
+
+        self.play_btn = theme.role(QPushButton("Play selection"), "accent")
+        self.play_btn.setToolTip("Play / stop the selected stretch or box (Ctrl+P).\n"
+                                 "Click the spectrogram or a table row to select a stretch.")
+        self.play_btn.setEnabled(False)
+        self.analyse_btn = QPushButton("Analyse selection")
         self.analyse_btn.setToolTip("Run the ticked models on just the selection or box and show what each\n"
                                     "model thinks is there (temporary - nothing is saved). Ctrl+E")
         self.analyse_btn.setEnabled(False)
@@ -375,15 +581,30 @@ class SingleFileTab(QWidget):
                                      "Usually WORSE: the models were trained on unfiltered audio (on a Wood\n"
                                      "Thrush test BirdNET no longer recognised it after filtering to 2-4.5 kHz).")
         self.analyse_band.setEnabled(False)
+        self.analyse_band.setVisible(False)
         self._dialogs = []
-        self.file_label = QLabel("No file loaded")
-        for w in (self.open_btn, self.run_btn, self.stop_btn, self.play_btn, self.analyse_btn,
-                  self.analyse_band, self.save_btn):
-            bar.addWidget(w)
-        bar.addWidget(self.file_label, 1)
         from .view_controls import ViewControls
 
         self.view = ViewControls()
+        self.view.setVisible(False)
+        self.view_btn = QToolButton()
+        self.view_btn.setText("View && listening options")
+        self.view_btn.setCheckable(True)
+        self.view_btn.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.view_btn.setArrowType(Qt.RightArrow)
+        self.view_btn.setToolTip("Colours, contrast, frequency range and FFT size of the spectrogram;\n"
+                                 "playback speed, hiss reduction and band filter for listening")
+        self.view_btn.toggled.connect(lambda on: (self.view.setVisible(on),
+                                                  self.view_btn.setArrowType(Qt.DownArrow if on else Qt.RightArrow),
+                                                  QSettings("BioTool", "BioTool").setValue("ui/view_open", on)))
+        sel = QHBoxLayout()
+        sel.addWidget(QLabel("<b>Selection:</b>"))
+        self.view.box_btn.setObjectName("")  # secondary tool: normal button style
+        for w in (self.play_btn, self.analyse_btn, self.analyse_band, self.view.box_btn, self.view.export_btn):
+            sel.addWidget(w)
+        sel.addStretch(1)
+        sel.addWidget(self.view_btn)
+        self.view_btn.setChecked(str(QSettings("BioTool", "BioTool").value("ui/view_open", "false")).lower() == "true")
         self.S_raw = None
         self.inf = None
 
@@ -412,6 +633,7 @@ class SingleFileTab(QWidget):
         self.lanes.setMaximumHeight(170)
         self.lanes.showGrid(x=True, y=False, alpha=0.2)
         legend = "   ".join(f"<span style='color: rgb{c}'>&#9632; {g}</span>" for g, c in GROUP_COLORS.items())
+        self._legend_html = legend
         self.legend = QLabel(f"Detections per model (colour = sound group, opacity = score):  {legend}")
 
         self.details = QLabel("Click on the spectrogram or the detection lanes to see what every model reported there.")
@@ -422,10 +644,13 @@ class SingleFileTab(QWidget):
         self.det_table = DataFrameView(on_row=self._row_clicked)
         self.agree_table = DataFrameView(on_row=self._row_clicked)
         self.idx_table = DataFrameView()
+        self.ev_table = DataFrameView(on_row=self._row_clicked)
         self.res_tabs = QTabWidget()
         self.res_tabs.addTab(self.agree_table, "Model agreement (per 3 s window)")
         self.res_tabs.addTab(self.det_table, "All detections")
         self.res_tabs.addTab(self.idx_table, "Acoustic indices (per minute)")
+        self.ev_tab = self.res_tabs.addTab(self.ev_table, "Sound intervals")
+        self.res_tabs.setTabVisible(self.ev_tab, False)
 
         top = QWidget()
         tl = QVBoxLayout(top)
@@ -441,6 +666,7 @@ class SingleFileTab(QWidget):
 
         lay = QVBoxLayout(self)
         lay.addLayout(bar)
+        lay.addLayout(sel)
         lay.addWidget(self.view)
         lay.addWidget(split, 1)
         self.view.display_changed.connect(self._render)
@@ -454,7 +680,8 @@ class SingleFileTab(QWidget):
         self.run_btn.clicked.connect(self.run_models)
         self.stop_btn.clicked.connect(self.stop)
         self.play_btn.clicked.connect(self.play_selection)
-        self.save_btn.clicked.connect(self.save_results)
+        self.save_btn.clicked.connect(self.open_run_folder)
+        self.load_btn.clicked.connect(lambda: self.load_results())
         self.analyse_btn.clicked.connect(self.analyse_selection)
         self.spec_plot.scene().sigMouseClicked.connect(lambda ev: self._plot_clicked(ev, self.spec_plot))
         self.lanes.scene().sigMouseClicked.connect(lambda ev: self._plot_clicked(ev, self.lanes))
@@ -486,8 +713,12 @@ class SingleFileTab(QWidget):
         self.det_table.set_frame(pd.DataFrame())
         self.agree_table.set_frame(pd.DataFrame())
         self.idx_table.set_frame(pd.DataFrame())
+        self.ev_table.set_frame(pd.DataFrame())
+        self.res_tabs.setTabVisible(self.ev_tab, False)
         self.lanes.clear()
         self.file_label.setText(Path(path).name)
+        self.run_dir = None
+        self._pending = None
         self.save_btn.setEnabled(False)
         self._launch(run_models=False)
 
@@ -528,6 +759,7 @@ class SingleFileTab(QWidget):
     def refresh_enabled(self, busy: bool):
         """Called by the main window whenever any job starts/ends."""
         self.open_btn.setEnabled(not busy)
+        self.load_btn.setEnabled(not busy)
         ready = not busy and self.path is not None and self.S_raw is not None
         self.run_btn.setEnabled(ready)
         self.analyse_btn.setEnabled(ready)
@@ -583,6 +815,7 @@ class SingleFileTab(QWidget):
 
     def _toggle_box(self, on: bool):
         self.analyse_band.setEnabled(on and self.S_raw is not None)
+        self.analyse_band.setVisible(on)
         if self.box is not None:
             self.spec_plot.removeItem(self.box)
             self.box = None
@@ -643,17 +876,54 @@ class SingleFileTab(QWidget):
     def _done(self, res):
         self._set_busy(False)
         if res is None:
+            if self._pending is not None and self.S_raw is not None:  # spectrogram of a loaded run is ready
+                res, settings, run_dir = self._pending
+                self._pending = None
+                self.run_settings, self.run_dir = settings, run_dir
+                self._show_result(res)
+                self.save_btn.setEnabled(True)
+                self.file_label.setText(self.file_label.text() + f"  |  results loaded from {run_dir.name}")
+                self.main.log(f"Loaded results from {run_dir}")
             return
-        self.result = res
+        self._show_result(res)
+        self.run_dir = None
+        if self.main.panel.autosave.isChecked():
+            try:
+                self.run_dir = save_single_run(res, self.main.panel.results_dir(), self.run_settings)
+                self.main.log(f"Saved to {self.run_dir}")
+                self.main.add_recent(self.run_dir)
+                if self.run_settings.save_embeddings and res.embeddings:
+                    self.main.explore.set_folder(str(self.run_dir))
+            except Exception as e:
+                self.main.log(f"ERROR: could not save the results to {self.main.panel.results_dir()}: {e}")
+                QMessageBox.warning(self, "Save results", f"Could not save the results:\n{e}\n\n"
+                                    "Choose another results folder on the left (3. Results are saved to).")
+        else:
+            self.main.log("Not saved (automatic saving is off) - use 'Save results...' to keep them.")
+        self.save_btn.setText("Open run folder" if self.run_dir else "Save results...")
+        self.save_btn.setToolTip("Open the folder where this run's tables were saved" if self.run_dir else
+                                 "Save this run's tables to a new folder in the results folder")
         self.save_btn.setEnabled(True)
+
+    def _show_result(self, res):
+        self.result = res
         det = res.detections
-        self.det_table.set_frame(det.drop(columns=["file"]))
+        self.det_table.set_frame(det.drop(columns=["file"], errors="ignore"))
         grid = self.run_settings.grid_s if self.run_settings else 3.0
         agree = merge.species_agreement(det, grid)
         self.res_tabs.setTabText(0, f"Model agreement (per {grid:g} s window)")
-        self.agree_table.set_frame(agree.drop(columns=["file"]))
-        self.idx_table.set_frame(res.indices.drop(columns=["file"]) if len(res.indices) else res.indices)
-        self._draw_lanes(det)
+        self.agree_table.set_frame(agree.drop(columns=["file"], errors="ignore"))
+        self.idx_table.set_frame(res.indices.drop(columns=["file"], errors="ignore") if len(res.indices) else res.indices)
+        ev = getattr(res, "events", None)
+        self.res_tabs.setTabVisible(self.ev_tab, ev is not None)
+        if ev is not None:
+            self.ev_table.set_frame(ev.drop(columns=["file"], errors="ignore"))
+            lanes = ev.rename(columns={"max_score": "score"})
+        else:
+            lanes = det
+        what = "Sound intervals" if ev is not None else "Detections"
+        self.legend.setText(f"{what} per model (colour = sound group, opacity = score):  {self._legend_html}")
+        self._draw_lanes(lanes)
         self.res_tabs.setCurrentIndex(0)
 
     def _draw_lanes(self, det: pd.DataFrame):
@@ -810,18 +1080,63 @@ class SingleFileTab(QWidget):
         self._dialogs = [d for d in self._dialogs if d.isVisible()] + [dlg]
         self.main.log(f"Analysed {s:.1f}-{e:.1f} s: {len(df)} labels from {df['model'].nunique() if len(df) else 0} models")
 
-    def save_results(self):
+    def open_run_folder(self):
         if self.result is None:
             return
-        out = QFileDialog.getExistingDirectory(self, "Choose output folder", self.main.last_dir)
-        if not out:
+        if self.run_dir is None:  # automatic saving was off: save now
+            try:
+                self.run_dir = save_single_run(self.result, self.main.panel.results_dir(),
+                                               self.run_settings or self.main.panel.settings())
+            except Exception as e:
+                QMessageBox.warning(self, "Save results", f"Could not save the results:\n{e}")
+                return
+            self.main.add_recent(self.run_dir)
+            self.main.log(f"Saved to {self.run_dir}")
+            self.save_btn.setText("Open run folder")
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(self.run_dir)))
+
+    def load_results(self, run_dir: str | None = None):
+        if self.main.busy_job:
+            QMessageBox.information(self, "Busy", "Wait for the current job to finish (or press Stop).")
             return
-        settings = self.run_settings or self.main.panel.settings()
-        stem = Path(self.path).stem
-        write_file_outputs(self.result, Path(out), stem, settings)
-        combine_outputs(Path(out), settings.grid_s)
-        self.main.log(f"Saved results to {out}")
-        QDesktopServices.openUrl(QUrl.fromLocalFile(out))
+        if not run_dir:
+            start = self.main.panel.results_dir()
+            run_dir = QFileDialog.getExistingDirectory(self, "Choose the folder of a saved run",
+                                                       str(start if start.exists() else self.main.last_dir))
+            if not run_dir:
+                return
+        run_dir = Path(run_dir)
+        settings, files = read_run(run_dir)
+        if not files:
+            QMessageBox.information(self, "Load results", f"No saved results found in\n{run_dir}\n\n"
+                                    "Choose a run folder (it contains run_config.json and a 'per_file' folder).")
+            return
+        entry = files[0]
+        if len(files) > 1:  # batch run: choose one recording
+            names = [f"{Path(f['file']).name or f['stem']}" for f in files]
+            name, ok = QInputDialog.getItem(self, "Load results", f"{len(files)} recordings in this run - "
+                                            "which one should be shown?", names, 0, False)
+            if not ok:
+                return
+            entry = files[names.index(name)]
+        audio = Path(entry["file"]) if entry.get("file") else None
+        if audio is None or not audio.is_file():
+            QMessageBox.information(self, "Load results", f"The recording of this run was not found:\n{audio}\n\n"
+                                    "Please point to it (it may have been moved or be on another computer).")
+            exts = " ".join(f"*{e}" for e in sorted(AUDIO_EXTENSIONS))
+            p, _ = QFileDialog.getOpenFileName(self, f"Where is {audio.name if audio else 'the recording'}?",
+                                               self.main.last_dir, f"Audio ({exts});;All files (*)")
+            if not p:
+                return
+            audio = Path(p)
+        res = read_file_result(run_dir, entry, audio)
+        if settings is None:  # older run without run_config.json: lanes for the models found in it
+            settings = RunSettings(models={m: {} for m in res.detections["model"].unique()})
+        self.main.tabs.setCurrentIndex(0)
+        self.open_file(str(audio))
+        if self.path == str(audio):
+            self._pending = (res, settings, run_dir)
+            self.main.add_recent(run_dir)
 
 
 # ----------------------------------------------------------------------------- batch
@@ -833,8 +1148,14 @@ class BatchTab(QWidget):
         self.in_edit = QLineEdit()
         self.out_edit = QLineEdit()
         in_btn = QPushButton("Browse...")
+        in_btn.setToolTip("Choose the folder with the recordings")
         out_btn = QPushButton("Browse...")
+        out_btn.setToolTip("Choose where the results of this batch are written")
+        self.in_edit.setToolTip("Folder with the recordings (you can also drag a folder onto the window)")
+        self.out_edit.setToolTip("Results of this batch. Keep the same folder to resume a stopped run:\n"
+                                 "finished files are skipped.")
         self.recursive = QCheckBox("Include subfolders")
+        self.recursive.setToolTip("Also process recordings in subfolders")
         self.recursive.setChecked(True)
         form = QFormLayout()
         r1 = QHBoxLayout(); r1.addWidget(self.in_edit, 1); r1.addWidget(in_btn)
@@ -846,9 +1167,16 @@ class BatchTab(QWidget):
         self.start_btn = theme.role(QPushButton("Start batch run"), "primary")
         self.stop_btn = theme.role(QPushButton("Stop"), "danger")
         self.stop_btn.setEnabled(False)
+        self.start_btn.setToolTip("Run the ticked models on every recording in the folder")
+        self.stop_btn.setToolTip("Stop after the current file; start again later to resume")
         self.open_btn = QPushButton("Open output folder")
+        self.open_btn.setToolTip("Open the output folder in the file explorer")
+        self.load_btn = QPushButton("Show a file's results...")
+        self.load_btn.setToolTip("Pick one recording of this batch and show its spectrogram and results\n"
+                                 "in the Single file tab")
+        self.load_btn.clicked.connect(lambda: self.out_edit.text() and self.main.single.load_results(self.out_edit.text()))
         btns = QHBoxLayout()
-        for b in (self.start_btn, self.stop_btn, self.open_btn):
+        for b in (self.start_btn, self.stop_btn, self.open_btn, self.load_btn):
             btns.addWidget(b)
         btns.addStretch(1)
         self.progress = QProgressBar()
@@ -882,8 +1210,8 @@ class BatchTab(QWidget):
         if d:
             edit.setText(d)
             self.main.last_dir = d
-            if is_input and not self.out_edit.text():
-                self.out_edit.setText(str(Path(d).parent / f"{Path(d).name}_biotool"))
+            if is_input:
+                self.out_edit.setText(str(self.main.panel.results_dir() / f"batch_{Path(d).name}"))
 
     def _open_out(self):
         if self.out_edit.text() and Path(self.out_edit.text()).exists():
@@ -932,6 +1260,7 @@ class BatchTab(QWidget):
         self.main.set_busy(False)
         p = Path(self.out_edit.text()) / "species_summary.csv"
         self.main.explore.set_folder(self.out_edit.text())
+        self.main.add_recent(self.out_edit.text())
         if p.exists():
             self.summary.set_frame(pd.read_csv(p, keep_default_na=False))
         if summary:
@@ -976,6 +1305,12 @@ class MainWindow(QMainWindow):
         self.tabs.addTab(self.single, "Single file")
         self.tabs.addTab(self.batch, "Batch (folder)")
         self.tabs.addTab(self.explore, "Explore sounds")
+        self.adv_tab = self.tabs.addTab(self.panel.advanced_page, "Advanced settings")
+        self.tabs.setTabToolTip(0, "Look at and listen to one recording, run the models on it")
+        self.tabs.setTabToolTip(1, "Run the models on every recording in a folder (resumable)")
+        self.tabs.setTabToolTip(2, "Group similar sounds using the saved embeddings")
+        self.tabs.setTabToolTip(self.adv_tab, "Model parameters, filters and processing options")
+        self.panel.open_advanced.connect(lambda: self.tabs.setCurrentIndex(self.adv_tab))
 
         self.log_box = QPlainTextEdit()
         self.log_box.setReadOnly(True)
@@ -1005,6 +1340,16 @@ class MainWindow(QMainWindow):
         a.setShortcut(QKeySequence("Ctrl+O"))
         a.triggered.connect(lambda: (self.tabs.setCurrentIndex(0), self.single.open_file()))
         m.addAction(a)
+        lr = QAction("Load results of a previous run...", self)
+        lr.setShortcut(QKeySequence("Ctrl+L"))
+        lr.triggered.connect(lambda: self.single.load_results())
+        m.addAction(lr)
+        self.recent_menu = m.addMenu("Recent results")
+        self.recent_menu.aboutToShow.connect(self._fill_recent)
+        orf = QAction("Open results folder", self)
+        orf.triggered.connect(self.panel._open_results_root)
+        m.addAction(orf)
+        m.addSeparator()
         q_ = QAction("Quit", self)
         q_.setShortcut(QKeySequence("Ctrl+Q"))
         q_.triggered.connect(self.close)
@@ -1022,7 +1367,8 @@ class MainWindow(QMainWindow):
         keys = QAction("Keyboard shortcuts", self)
         keys.triggered.connect(lambda: QMessageBox.information(
             self, "Keyboard shortcuts",
-            "Ctrl+O  open audio file\nCtrl+R  run models on the open file\nCtrl+P  play / stop selection\n"
+            "Ctrl+O  open audio file\nCtrl+R  run models on the open file\nCtrl+L  load results of a previous run\n"
+            "Ctrl+P  play / stop selection\n"
             "Ctrl+E  analyse the selection / box\n"
             "Ctrl+Q  quit\n\nDrag an audio file onto the window to open it,\n"
             "or a folder to use it as the batch recordings folder."))
@@ -1060,7 +1406,7 @@ class MainWindow(QMainWindow):
             p = Path(sl.get("path", ""))
             if not p.is_file():
                 QMessageBox.warning(self, "Species list", f"Species list file not found:\n{p}\n\n"
-                                    "Choose the file on the left, or untick 'Species list'.")
+                                    "Choose the file in the Advanced settings tab, or untick 'Species list' there.")
                 return False
             from ..species_list import read_names
             if not read_names(p):
@@ -1071,7 +1417,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Location filter",
                                 "The location filter is on but latitude/longitude are 0, 0 (in the Atlantic "
                                 "Ocean) - almost every species would be removed.\n\nEnter the site "
-                                "coordinates on the left, or untick 'Location / season filter'.")
+                                "coordinates in the Advanced settings tab, or untick 'Location / season filter' there.")
             return False
         return True
 
@@ -1106,8 +1452,7 @@ class MainWindow(QMainWindow):
         if p.is_dir():
             self.tabs.setCurrentIndex(1)
             self.batch.in_edit.setText(str(p))
-            if not self.batch.out_edit.text():
-                self.batch.out_edit.setText(str(p.parent / f"{p.name}_biotool"))
+            self.batch.out_edit.setText(str(self.panel.results_dir() / f"batch_{p.name}"))
         elif p.suffix.lower() in AUDIO_EXTENSIONS:
             self.tabs.setCurrentIndex(0)
             self.single.open_file(str(p))
@@ -1137,6 +1482,23 @@ class MainWindow(QMainWindow):
         except Exception:
             pass
         ev.accept()
+
+    # -- recent runs
+    def add_recent(self, run_dir):
+        q = QSettings("BioTool", "BioTool")
+        rec = [str(run_dir)] + [r for r in (q.value("runs/recent") or []) if r != str(run_dir)]
+        q.setValue("runs/recent", rec[:12])
+
+    def _fill_recent(self):
+        self.recent_menu.clear()
+        rec = [r for r in (QSettings("BioTool", "BioTool").value("runs/recent") or []) if Path(r).is_dir()]
+        if not rec:
+            a = self.recent_menu.addAction("(no saved runs yet)")
+            a.setEnabled(False)
+        for r in rec:
+            a = self.recent_menu.addAction(Path(r).name)
+            a.setToolTip(r)
+            a.triggered.connect(lambda _=False, r=r: self.single.load_results(r))
 
     def log(self, msg: str):
         self.log_box.appendPlainText(msg)

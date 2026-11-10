@@ -8,7 +8,6 @@ their centre to the model's window length (models only work on the length they w
 
 from __future__ import annotations
 
-import numpy as np
 import pandas as pd
 
 from .audio import info, resample
@@ -51,6 +50,8 @@ def analyse_selection(engine: Engine, path: str, start_s: float, end_s: float,
             m.threshold, m.max_per_window, m.quiet_dbfs = 0.005, max(20, top_k * 3), None
             if key == "yamnet":
                 m.options["group_s"] = max(0.96, b - a)
+            elif key == "birdcode":  # frame-level events over thousands of classes: keep it lean
+                m.threshold = 0.05
             elif key == "dfs":
                 m.options["overlap_s"] = max(0.0, win - max(1.0, hop_s))
                 m.options["thresholds"] = "min score above"  # show raw scores; flagged below

@@ -67,16 +67,23 @@ class ExploreTab(QWidget):
         self._player = None
 
         self.dir_edit = QLineEdit()
-        self.dir_edit.setPlaceholderText("Results folder of a batch run (with embeddings)")
+        self.dir_edit.setPlaceholderText("Folder of a saved run (single file or batch) with embeddings")
+        self.dir_edit.setToolTip("A run folder with embeddings: every model run saves one when\n"
+                                 "Advanced settings > Save embeddings is on (the default).")
         browse = QPushButton("Browse...")
+        browse.setToolTip("Choose a saved run folder")
         self.model = QComboBox()
         self.scope = QComboBox()
         for k, v in explore.SCOPES.items():
             self.scope.addItem(v, k)
         self.mcs = QSpinBox(); self.mcs.setRange(2, 500); self.mcs.setValue(8)
         self.mcs.setToolTip("Smallest number of similar windows that counts as a group")
+        self.model.setToolTip("Which model's embeddings to compare (Perch usually separates sounds best)")
+        self.scope.setToolTip("Which windows to group: all, or only those no model recognised")
         self.run_btn = theme.role(QPushButton("Find sound groups"), "primary")
+        self.run_btn.setToolTip("Cluster the windows into groups of similar sounds (HDBSCAN)")
         self.export_btn = QPushButton("Export groups (CSV)")
+        self.export_btn.setToolTip("Save the groups, their names and their windows as CSV tables")
         self.export_btn.setEnabled(False)
         self.status = QLabel("")
         self.status.setObjectName("muted")
@@ -90,7 +97,7 @@ class ExploreTab(QWidget):
                   QLabel("Min. group size"), self.mcs, self.run_btn, step("4"), self.export_btn):
             r2.addWidget(w)
         r2.addStretch(1)
-        help_ = QLabel("Groups windows that sound alike, using the embeddings saved by a batch run. "
+        help_ = QLabel("Groups windows that sound alike, using the embeddings saved with a run (single file or batch). "
                        "<b>3</b> Click a group (table or map) to see and hear its windows, give it a name, "
                        "then <b>4</b> export. Grey points = unassigned one-off sounds. "
                        "Perch embeddings usually separate sounds best.")
@@ -115,10 +122,13 @@ class ExploreTab(QWidget):
         self.snip.addItem(self.snip_region)
         self.play_btn = QPushButton("Play window")
         self.play_btn.setEnabled(False)
+        self.play_btn.setToolTip("Play the selected window (Ctrl+P)")
         self.rep_btn = QPushButton("Play group example")
+        self.rep_btn.setToolTip("Play the window most typical of the selected group")
         self.rep_btn.setEnabled(False)
         self.name_edit = QLineEdit(); self.name_edit.setPlaceholderText("Name this group, e.g. 'cicada A' or 'generator'")
         self.name_btn = QPushButton("Set name"); self.name_btn.setEnabled(False)
+        self.name_btn.setToolTip("Give the selected group this name (included in the export)")
         self.snip_label = QLabel("")
         self.snip_label.setWordWrap(True)
 
@@ -224,7 +234,7 @@ class ExploreTab(QWidget):
             self.model.addItem(m)
         self.model.blockSignals(False)
         if folder and not ms:
-            msg = "No embeddings in this folder - run a batch with 'Save embeddings' ticked."
+            msg = "No embeddings in this folder - choose a run made with 'Save embeddings' on (Advanced settings)."
         elif ms:
             n = len(list(Path(folder, "embeddings").glob(f"*__{self.model.currentText()}.npz")))
             msg = f"Embeddings found for: {', '.join(ms)} ({n} files). Click 'Find sound groups'."

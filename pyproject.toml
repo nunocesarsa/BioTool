@@ -1,10 +1,10 @@
 [project]
 name = "biotool"
-version = "0.4.0"
+version = "0.5.0"
 description = "Local, CPU-based multi-model bioacoustics processing tool with a desktop interface"
 readme = "README.md"
 license = { text = "MIT" }
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.12,<3.13"
 dependencies = [
     "numpy>=1.26",
     "pandas>=2.1",
@@ -21,14 +21,28 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# DeepForestSound (African forest species) needs PyTorch: InstallDeepForestSound.bat / uv sync --extra dfs
+# Optional PyTorch models. Both extras share one torch stack, so they can be installed together:
+#   InstallDeepForestSound.bat / uv sync --extra dfs
+#   InstallBirdCODE.bat        / uv sync --extra birdcode
+# DeepForestSound (African forest species). Its code is downloaded at runtime (CC BY-NC-SA) and
+# patched in memory for timm 1.x.
 dfs = [
-    "torch>=2.2,<2.6",
-    "torchaudio>=2.2,<2.6",
-    "timm==0.4.5",
+    "torch>=2.6,<2.12",
+    "torchaudio>=2.6,<2.12",
+    "timm>=1.0.15",
     "peft==0.10.0",
-    "transformers==4.40.2",
+    "transformers>=4.50,<5",
     "wget>=3.2",
+]
+# BirdCODE zero-shot bird sound event detection (Earth Species Project, MIT code; weights from Hugging Face).
+# Not on PyPI: pinned to a commit of github.com/earthspecies/sound-event-detection.
+birdcode = [
+    "torch>=2.6,<2.12",
+    "torchaudio>=2.6,<2.12",
+    "transformers>=4.50,<5",
+    "librosa>=0.10",
+    "huggingface-hub>=0.20",
+    "sound-event-detection @ https://github.com/earthspecies/sound-event-detection/archive/617c6408fdd1b56c3873ef2d17006ffbaee61783.zip",
 ]
 
 [dependency-groups]
@@ -46,6 +60,15 @@ biotool-gui = "biotool.gui.app:main"
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.uv]
+# librosa -> numba: older numba has no cp312 wheels (same floor as sound-event-detection).
+# torch / torchaudio / torchvision must be released together: a mismatched pair fails to load
+# ("undefined symbol" / "torchvision::nms does not exist"). Tested set: 2.11.0 / 2.11.0 / 0.26.0.
+constraint-dependencies = ["numba>=0.64", "torch==2.11.0", "torchaudio==2.11.0", "torchvision==0.26.0"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/biotool"]

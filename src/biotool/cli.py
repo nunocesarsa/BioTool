@@ -47,6 +47,10 @@ def main(argv=None):
     r.add_argument("--species-mode", choices=["include", "exclude"], default="include",
                    help="include = keep only listed species (default), exclude = remove them")
     r.add_argument("--grid", type=float, default=3.0, help="time grid (s) for the model-agreement tables")
+    r.add_argument("--intervals", action="store_true",
+                   help="also write sound intervals (start/end per sound; sound_intervals.csv)")
+    r.add_argument("--intervals-spectrogram", action="store_true",
+                   help="with --intervals: add each sound's frequency band and trim edges using spectrogram intensity")
     r.add_argument("--skip-quiet", type=float, default=None, metavar="DBFS",
                    help="skip BirdNET/Perch windows quieter than this RMS level, e.g. -70")
     r.add_argument("--highpass", type=float, default=0.0,
@@ -71,7 +75,8 @@ def main(argv=None):
     for t in a.threshold:
         k, v = t.split("=")
         models.setdefault(k, {})["threshold"] = float(v)
-    s = RunSettings(models=models, save_embeddings=not a.no_embeddings, threads=a.threads,
+    s = RunSettings(models=models, save_embeddings=not a.no_embeddings, threads=a.threads, events=a.intervals or a.intervals_spectrogram,
+                    events_spectrogram=a.intervals_spectrogram,
                     location=location_from_args(a.lat, a.lon, a.date), highpass_hz=a.highpass,
                     grid_s=a.grid, quiet_dbfs=a.skip_quiet,
                     species_list={"enabled": True, "mode": a.species_mode, "path": a.species_list}

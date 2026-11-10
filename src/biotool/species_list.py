@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pandas as pd
 
-SPECIES_MODELS = ("birdnet", "perch_v2", "dfs")
+SPECIES_MODELS = ("birdnet", "perch_v2", "dfs", "birdcode")
 
 
 @dataclass

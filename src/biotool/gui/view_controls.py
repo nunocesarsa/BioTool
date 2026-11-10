@@ -34,6 +34,7 @@ class ViewControls(QWidget):
 
         # --- view row
         self.cmap = QComboBox(); self.cmap.addItems(["viridis", "inferno", "magma", "grey"])
+        self.cmap.setToolTip("Colour scale of the spectrogram")
         self.denoise = QCheckBox("Remove background")
         self.denoise.setChecked(True)
         self.denoise.setToolTip("Subtract each frequency's median level (display only) so calls stand out")
@@ -53,12 +54,20 @@ class ViewControls(QWidget):
         for w in (self.fmin, self.fmax):
             w.setDecimals(1); w.setSingleStep(0.5); w.setSuffix(" kHz"); w.setRange(0, 200)
         self.reset_btn = QPushButton("Reset view")
+        self.reset_btn.setToolTip("Back to the default colours, contrast, frequency range and playback options")
+        self.preset.setToolTip("Frequency range shown (and used by 'Only the visible frequency band')")
+        self.fmin.setToolTip("Lowest frequency shown")
+        self.fmax.setToolTip("Highest frequency shown")
 
         r1 = QHBoxLayout()
         r1.setContentsMargins(0, 0, 0, 0)
-        for w in (QLabel("<b>View</b>"), QLabel("Colours"), self.cmap, self.denoise, QLabel("Brightness"),
-                  self.bright, QLabel("Contrast"), self.contrast, QLabel("FFT"), self.fft,
-                  QLabel("Frequency"), self.preset, self.fmin, QLabel("-"), self.fmax, self.reset_btn):
+        def lab(text, tip):
+            w = QLabel(text); w.setToolTip(tip)
+            return w
+        for w in (QLabel("<b>View</b>"), lab("Colours", self.cmap.toolTip()), self.cmap, self.denoise,
+                  lab("Brightness", self.bright.toolTip()), self.bright, lab("Contrast", self.contrast.toolTip()),
+                  self.contrast, lab("FFT", self.fft.toolTip()), self.fft, lab("Frequency", self.preset.toolTip()),
+                  self.preset, self.fmin, QLabel("-"), self.fmax, self.reset_btn):
             r1.addWidget(w)
         r1.addStretch(1)
 
@@ -91,8 +100,8 @@ class ViewControls(QWidget):
         r2.setContentsMargins(0, 0, 0, 0)
         note = QLabel("display and playback only - models and files are not affected")
         note.setObjectName("muted")
-        for w in (QLabel("<b>Listen</b>"), QLabel("Speed"), self.speed, QLabel("Reduce hiss"), self.hiss,
-                  self.band, self.box_btn, self.export_btn, note):
+        for w in (QLabel("<b>Listen</b>"), lab("Speed", self.speed.toolTip()), self.speed,
+                  lab("Reduce hiss", self.hiss.toolTip()), self.hiss, self.band, note):
             r2.addWidget(w)
         r2.addStretch(1)
 

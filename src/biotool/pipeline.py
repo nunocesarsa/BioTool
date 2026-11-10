@@ -19,6 +19,7 @@ from .audio import HighPass, find_audio_files, info, iter_blocks, resample
 from .location import LocationFilter, LocationSettings
 from .species_list import SpeciesList, SpeciesListSettings, file_hash
 from .models import DETECTORS, AcousticIndices
+from .events import BLOB_COLUMNS, build_events, empty_events, find_blobs, refine_with_blobs
 from .models.base import DETECTION_COLUMNS, ModelOutput
 from .models.indices import INDEX_COLUMNS
 
@@ -38,6 +39,8 @@ class RunSettings:
     highpass_hz: float = 0.0  # >0: high-pass filter the audio the models see (indices use raw audio)
     species_list: dict = field(default_factory=dict)  # SpeciesListSettings as dict (empty = off)
     quiet_dbfs: float | None = None  # skip BirdNET/Perch windows quieter than this (RMS dBFS); None = off
+    events: bool = False  # also write sound intervals (consecutive windows joined; BirdCODE times for birds)
+    events_spectrogram: bool = False  # + frequency band and trimmed edges from spectrogram intensity blobs
 
     def fingerprint(self) -> str:
         loc = self.location if self.location.get("enabled") else {}
@@ -47,6 +50,8 @@ class RunSettings:
             extra["sl"] = {**self.species_list, "hash": file_hash(self.species_list.get("path", ""))}
         if self.quiet_dbfs is not None:
             extra["quiet"] = self.quiet_dbfs
+        if self.events:
+            extra["events"] = 2 if self.events_spectrogram else 1
         d = json.dumps({"models": self.models, "grid": self.grid_s, "block": self.block_s,
                         "emb": self.save_embeddings, "loc": loc, "v": __version__, **hp, **extra},
                        sort_keys=True)
@@ -65,6 +70,7 @@ class FileResult:
     warnings: list[str] = field(default_factory=list)
     removed: pd.DataFrame | None = None  # detections dropped by the location filter / species list
     location_note: str = ""
+    events: pd.DataFrame | None = None  # sound intervals (RunSettings.events)
 
 
 _COMMON: dict[str, str] | None = None
@@ -143,6 +149,8 @@ class Engine:
                             f"up to {inf.samplerate // 2} Hz (sample rate {inf.samplerate} Hz)")
         outs = {k: ModelOutput() for k in self.detectors}
         idx_rows = []
+        blob_parts = []
+        want_blobs = self.settings.events and self.settings.events_spectrogram and bool(self.detectors)
         hp = None
         if self.settings.highpass_hz and self.settings.highpass_hz < inf.samplerate / 2:
             hp = HighPass(self.settings.highpass_hz, inf.samplerate)
@@ -150,8 +158,12 @@ class Engine:
             if should_stop and should_stop():
                 raise InterruptedError("stopped")
             mblock = hp(block) if hp else block
+            if want_blobs:
+                blob_parts.append(find_blobs(block, sr, offset))
             for key, m in self.detectors.items():
-                if getattr(m, "native_sr", False):  # model resamples itself (e.g. DeepForestSound)
+                if getattr(m, "whole_file", False):  # e.g. BirdCODE: analyses the whole recording at once
+                    m.add_block(mblock, sr, offset)
+                elif getattr(m, "native_sr", False):  # model resamples itself (e.g. DeepForestSound)
                     m.input_sr = sr
                     outs[key].extend(m.process(mblock, offset, label))
                 else:
@@ -160,6 +172,10 @@ class Engine:
                 row = self.indices.process(block, sr, offset, label)
                 if row:
                     idx_rows.append(row)
+        for key, m in self.detectors.items():
+            if getattr(m, "whole_file", False):
+                self.progress(f"{m.name}: analysing the whole recording ...")
+                outs[key].detections = m.finish_file(label)
         dets = [d for o in outs.values() for d in o.detections]
         det_df = pd.DataFrame(dets, columns=DETECTION_COLUMNS) if dets else merge.empty_detections()
         det_df = fill_common_names(det_df)
@@ -187,9 +203,17 @@ class Engine:
         det_df = det_df.sort_values(["start_s", "model", "score"], ascending=[True, True, False]).reset_index(drop=True)
         emb = {k: (np.array(o.emb_times, dtype=np.float32), np.stack(o.embeddings))
                for k, o in outs.items() if o.embeddings}
+        events = None
+        if self.settings.events:
+            hops = {k: m.hop_s() for k, m in self.detectors.items() if m.hop_s()}
+            events = build_events(det_df, hops, self.settings.block_s)
+            if want_blobs:
+                blobs = pd.concat([b for b in blob_parts if len(b)] or [pd.DataFrame(columns=BLOB_COLUMNS)],
+                                  ignore_index=True)
+                events = refine_with_blobs(events, blobs)
         return FileResult(path, inf.duration_s, inf.samplerate, det_df,
                           pd.DataFrame(idx_rows, columns=INDEX_COLUMNS), emb, time.time() - t0, warn,
-                          removed, note)
+                          removed, note, events)
 
 
 # ---------------------------------------------------------------------------- outputs
@@ -205,6 +229,8 @@ def write_file_outputs(res: FileResult, out_dir: Path, stem: str, settings: RunS
     res.indices.to_csv(pf / f"{stem}.indices.csv", index=False)
     if res.removed is not None:
         res.removed.to_csv(pf / f"{stem}.removed.csv", index=False)
+    if res.events is not None:
+        res.events.to_csv(pf / f"{stem}.intervals.csv", index=False)
     if settings.save_embeddings and res.embeddings:
         ed = out_dir / "embeddings"
         ed.mkdir(exist_ok=True)
@@ -216,6 +242,9 @@ def write_file_outputs(res: FileResult, out_dir: Path, stem: str, settings: RunS
         rd.mkdir(exist_ok=True)
         merge.raven_table(res.detections, res.samplerate).to_csv(
             rd / f"{stem}.selections.txt", sep="\t", index=False)
+        if res.events is not None:
+            merge.raven_table(res.events.rename(columns={"max_score": "score"}), res.samplerate).to_csv(
+                rd / f"{stem}.intervals.selections.txt", sep="\t", index=False)
     (pf / f"{stem}.done.json").write_text(json.dumps({
         "file": str(res.path), "fingerprint": settings.fingerprint(), "duration_s": res.duration_s,
         "samplerate": res.samplerate, "seconds": round(res.seconds, 2), "warnings": res.warnings,
@@ -243,6 +272,11 @@ def combine_outputs(out_dir: Path, grid_s: float = 3.0) -> dict[str, Path]:
     }
     rem = [pd.read_csv(p, keep_default_na=False) for p in sorted(pf.glob("*.removed.csv"))]
     rem = [d for d in rem if len(d)]
+    evs = [pd.read_csv(p, keep_default_na=False) for p in sorted(pf.glob("*.intervals.csv"))]
+    if evs:
+        paths["events"] = out_dir / "sound_intervals.csv"
+        ev = pd.concat([d for d in evs if len(d)] or [empty_events()], ignore_index=True)
+        ev.to_csv(paths["events"], index=False)
     if rem:
         paths["removed"] = out_dir / "removed_detections.csv"
         pd.concat(rem, ignore_index=True).to_csv(paths["removed"], index=False)
@@ -253,6 +287,81 @@ def combine_outputs(out_dir: Path, grid_s: float = 3.0) -> dict[str, Path]:
     (pd.concat(idx, ignore_index=True) if idx else pd.DataFrame(columns=INDEX_COLUMNS)).to_csv(
         paths["indices"], index=False)
     return paths
+
+
+# ----------------------------------------------------------------------------- saved runs
+def settings_from_dict(d: dict) -> RunSettings:
+    """RunSettings from run_config.json (unknown keys from other versions are ignored)."""
+    import dataclasses
+
+    names = {f.name for f in dataclasses.fields(RunSettings)}
+    return RunSettings(**{k: v for k, v in (d or {}).items() if k in names})
+
+
+def save_single_run(res: FileResult, root: str | Path, settings: RunSettings) -> Path:
+    """Save one file's results as a run folder <root>/<date_time>_<file name> (never overwrites)."""
+    root = Path(root)
+    stem = Path(res.path).stem
+    base = root / f"{datetime.now():%Y-%m-%d_%H%M%S}_{stem}"
+    out, n = base, 1
+    while out.exists():
+        n += 1
+        out = base.with_name(f"{base.name}_{n}")
+    out.mkdir(parents=True)
+    write_file_outputs(res, out, stem, settings)
+    combine_outputs(out, settings.grid_s)
+    (out / "run_config.json").write_text(json.dumps({
+        "kind": "single", "input": str(res.path), "settings": settings.__dict__,
+        "fingerprint": settings.fingerprint(), "n_files": 1, "biotool_version": __version__,
+        "started": datetime.now().isoformat(timespec="seconds")}, indent=2, default=str))
+    return out
+
+
+def read_run(run_dir: str | Path) -> tuple[RunSettings | None, list[dict]]:
+    """Settings and finished files of a saved run (single file or batch).
+
+    Each file: {"stem", "file" (audio path when the run was made), "duration_s", "samplerate"}."""
+    run_dir = Path(run_dir)
+    settings = None
+    cfg = run_dir / "run_config.json"
+    if cfg.exists():
+        try:
+            settings = settings_from_dict(json.loads(cfg.read_text()).get("settings"))
+        except Exception:
+            settings = None
+    files = []
+    for m in sorted((run_dir / "per_file").glob("*.done.json")):
+        try:
+            d = json.loads(m.read_text())
+        except Exception:
+            continue
+        files.append({"stem": m.name[: -len(".done.json")], "file": d.get("file", ""),
+                      "duration_s": d.get("duration_s"), "samplerate": d.get("samplerate")})
+    return settings, files
+
+
+def read_file_result(run_dir: str | Path, entry: dict, audio_path: str | Path | None = None) -> FileResult:
+    """One file's saved tables as a FileResult (embeddings are not loaded)."""
+    pf = Path(run_dir) / "per_file"
+    stem = entry["stem"]
+
+    def table(name, empty):
+        p = pf / f"{stem}.{name}.csv"
+        if not p.exists():
+            return empty
+        d = pd.read_csv(p, keep_default_na=False)
+        for c in ("start_s", "end_s", "score", "duration_s", "max_score", "outer_start_s", "outer_end_s",
+                  "low_hz", "high_hz"):
+            if c in d:
+                d[c] = pd.to_numeric(d[c], errors="coerce")
+        return d
+
+    det = table("detections", merge.empty_detections())
+    idx = table("indices", pd.DataFrame(columns=INDEX_COLUMNS))
+    removed = table("removed", None)
+    events = table("intervals", None)
+    return FileResult(Path(audio_path or entry.get("file", "")), float(entry.get("duration_s") or 0),
+                      int(entry.get("samplerate") or 0), det, idx, {}, 0.0, [], removed, "", events)
 
 
 def run_folder(input_dir: str | Path, output_dir: str | Path, settings: RunSettings,

@@ -67,6 +67,13 @@ class ModelAdapter:
         self._loaded = False
 
     # -- lifecycle -------------------------------------------------------------
+    def hop_s(self) -> float | None:
+        """Step between window starts (for joining windows into sound intervals); None = not windowed."""
+        return self.window_s - float(self.options.get("overlap_s", 0.0) or 0.0)
+
+    def window_len_s(self) -> float:
+        return self.window_s
+
     def ensure_loaded(self, progress=None) -> None:
         if not self._loaded:
             self.load(progress=progress)

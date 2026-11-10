@@ -1,25 +1,32 @@
 # BioTool roadmap
 
-## Current state (v0.2.0, 30 Oct 2026)
-- Models: BirdNET v2.4, Perch v2, YAMNet, acoustic indices (scikit-maad); embeddings saved per window.
-- Desktop app: Single file, Batch (with resume), Explore sounds (embedding clusters, naming, export).
-- Location/season filter (BirdNET range model); advanced per-model settings; settings remembered.
-- `Evaluate.bat`: Powdermill + ESC-50 report. Best minimum scores found: BirdNET 0.25-0.3, Perch 0.03.
+## Current state (v0.5.0, 10 Nov 2026)
+- Models: BirdNET v2.4, Perch v2, YAMNet, acoustic indices (scikit-maad); optional PyTorch models
+  DeepForestSound (African forest species) and BirdCODE (zero-shot bird sound event detection), both
+  checked against their authors' reference outputs / expected results (BirdCODE: run `TestBirdCODE.bat`).
+- Sound intervals (start/end per sound) with optional frequency band from the spectrogram.
+- Desktop app: Single file, Batch (with resume), Explore sounds, Advanced settings; every run is saved
+  automatically and can be loaded again.
+- Location/season filter, species list, settings remembered. `Evaluate.bat`: Powdermill + ESC-50 report.
 
-## Agreed items (31 Oct 2026)
-1. **Review mode** - NEXT - step through detections (by species / model / score), listen, mark
-   *correct / wrong / unsure*. Save verdicts next to the results (e.g. `reviews.csv`), show them in the
-   tables. Verified data from your own sites feeds per-site threshold tuning and (later) custom evaluation.
-2. **Listening and viewing aids** - DONE: colour map, background removal, brightness/contrast,
-   FFT size, frequency presets/zoom, slowed playback, band-pass playback, hiss reduction,
-   time x frequency box selection, clip export (copies only).
-3. **High-pass pre-filter experiment** - DONE: `HighpassTest.bat`. BirdNET gets clearly worse with any
-   high-pass (F1 0.78 -> 0.51 at 300 Hz), so no pre-filtering; kept as CLI option `--highpass`.
-   Perch / YAMNet results: see `evaluation/highpass_powdermill.csv` after running the .bat.
+## Next
+- **Background sound file** - remove the confidently detected sounds (time x frequency boxes from the
+  sound intervals) from the spectrogram, fill them with the background level, and write
+  `background.wav`: ambience beds for training data, indices of the background alone, and a way to hear
+  what the models missed.
+- **Review mode** - step through detections (by species / model / score), listen, mark
+  *correct / wrong / unsure*; save verdicts next to the results (`reviews.csv`) and show them in the
+  tables. Verified data from your own sites feeds per-site threshold tuning and custom evaluation.
+- **Import models / open models folder** - for networks that block the model downloads
+  (storage.googleapis.com, huggingface.co): copy the models folder from another computer from the app.
 
-4. **More settings + Analyse selection** - DONE: Perch overlap, YAMNet grouping window/method,
-   species list (include/exclude), agreement grid, skip quiet windows, index bands; Analyse selection
-   (Ctrl+E) shows each model's top labels for one selection/box; themes, shortcuts, drag & drop.
+## Done
+- Listening and viewing aids (colour map, background removal, contrast, FFT size, frequency zoom,
+  slowed / band-pass playback, hiss reduction, box selection, clip export).
+- High-pass pre-filter experiment (`HighpassTest.bat`): BirdNET gets clearly worse with any high-pass
+  (F1 0.78 -> 0.51 at 300 Hz), so no pre-filtering; kept as CLI option `--highpass`.
+- More settings + Analyse selection (Ctrl+E), themes, shortcuts, drag & drop.
+- DeepForestSound (0.4.0), BirdCODE, sound intervals, clearer interface with auto-saved runs (0.5.0).
 
 ## Later
 - **AnimalCLAP** as an optional experimental model (separate install, PyTorch): text search

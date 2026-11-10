@@ -24,7 +24,7 @@ from .downloads import birdnet_files
 from .models.base import split_birdnet_label
 from .models.birdnet import NON_SPECIES_GROUPS, _interpreter
 
-FILTERED_MODELS = ("birdnet", "perch_v2", "dfs")
+FILTERED_MODELS = ("birdnet", "perch_v2", "dfs", "birdcode")
 
 # 20230415_063000 (AudioMoth), SITE_20230415_063000 (Song Meter), 2023-04-15T06-30-00 ...
 _DATE_RE = re.compile(r"(?<!\d)(20\d{2}|19\d{2})[-_]?(0[1-9]|1[0-2])[-_]?(0[1-9]|[12]\d|3[01])(?!\d)")
